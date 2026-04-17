@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "862000804017",
+    "project_id": "synapse-8f371",
+    "storage_bucket": "synapse-8f371.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:862000804017:android:79b190b87cfe4f958eb290",
+        "android_client_info": {
+          "package_name": "com.synapse.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "862000804017-nrqnm49aujsl91j3dq7er9u9tcms8637.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBE1XlSAdtuu9qzevZ_ecUNwbHPjq1_q9I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "862000804017-nrqnm49aujsl91j3dq7er9u9tcms8637.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "862000804017-ta9qqs1eqnucarm5mes28coi6e7i1l7t.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.synapse.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
