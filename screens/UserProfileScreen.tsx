@@ -4,16 +4,13 @@ import {
   Modal, TextInput, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, FlatList
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-
-import { getAuth } from '@react-native-firebase/auth';
-import {
-  getFirestore, doc, getDoc, collection, setDoc, addDoc, writeBatch, serverTimestamp, query, where, getDocs, deleteDoc
-} from '@react-native-firebase/firestore';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import LinearGradient from 'react-native-linear-gradient';
+import { BlurView } from '@react-native-community/blur';
+import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
 import MatchingScreen from './MatchingScreen';
-import * as NavigationBar from 'expo-navigation-bar';
 
 const { width, height } = Dimensions.get('window');
 const IMAGE_HEIGHT = height * 0.65;
@@ -97,6 +94,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
   const [isFavoriteProcessing, setIsFavoriteProcessing] = useState(false);
   const [isnotePage, setIsnotePage] = useState(false);
   const [isMatched, setIsMatched] = useState(false);
+  const [newMatchId, setNewMatchId] = useState<string | null>(null);
   const [matchId, setMatchId] = useState<string | null>(null);
   const [questionModalVisible, setQuestionModalVisible] = useState(false);
   const [answerText, setAnswerText] = useState('');
@@ -125,13 +123,6 @@ export default function UserProfileScreen({ navigation, route }: any) {
 
   useEffect(() => {
     if (Platform.OS === 'android') {
-      NavigationBar.setBackgroundColorAsync('#ffffff00');
-      NavigationBar.setPositionAsync('absolute');
-    }
-  }, []);
-
-  useEffect(() => {
-    if (Platform.OS === 'android') {
       const keyboardDidShowListener = Keyboard.addListener(
         'keyboardDidShow',
         (e) => {
@@ -155,9 +146,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
     let isMounted = true;
     const fetchUserProfile = async () => {
       try {
-        const db = getFirestore();
-        const userDocRef = doc(db, 'users', userId);
-        const userDoc = await getDoc(userDocRef);
+        const userDoc = await firestore().collection('users').doc(userId).get();
 
         if (userDoc.exists() && isMounted) {
           setUser({ id: userDoc.id, isVerified: true, ...userDoc.data() } as UserProfile);//一時的に本人確認済み状態にしている
@@ -168,8 +157,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
 
         if (isMounted) {
           try {
-            const subPhotosRef = collection(db, 'users', userId, 'subPhotos')
-            const subPhotosSnap = await getDocs(query(subPhotosRef));
+            const subPhotosSnap = await firestore().collection('users').doc(userId).collection('subPhotos').get();
             const photosData: any[] = [];
 
             subPhotosSnap.forEach((d: any) => photosData.push(d.data()));
@@ -208,15 +196,11 @@ export default function UserProfileScreen({ navigation, route }: any) {
   useEffect(() => {
     let isMounted = true;
     const fetchExistingMemo = async () => {
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
+      const currentUser = auth().currentUser;
       if (!currentUser || !userId) return;
 
       try {
-        const db = getFirestore();
-        const memoRef = doc(db, 'users', currentUser.uid, 'memos', userId);
-        const memoDoc = await getDoc(memoRef);
-
+        const memoDoc = await firestore().collection('users').doc(currentUser.uid).collection('memos').doc(userId).get();
         if (memoDoc.exists() && isMounted) {
           const data = memoDoc.data();
           if (data?.text) {
@@ -234,21 +218,16 @@ export default function UserProfileScreen({ navigation, route }: any) {
   useEffect(() => {
     let isMounted = true;
     const fetchMyDataAndPartnerAnswer = async () => {
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
+      const currentUser = auth().currentUser;
       if (!currentUser || !userId) return;
 
       try {
-        const db = getFirestore();
-        const myDocRef = doc(db, 'users', currentUser.uid);
-        const myDoc = await getDoc(myDocRef);
+        const myDoc = await firestore().collection('users').doc(currentUser.uid).get();
         if (myDoc.exists() && isMounted) {
           setMyQuestion(myDoc.data()?.question || null);
         }
 
-        const receivedRef = collection(db, 'users', currentUser.uid, 'receivedLikes');
-        const qReceived = query(receivedRef, where('fromUserId', '==', userId));
-        const receivedSnap = await getDocs(qReceived);
+        const receivedSnap = await firestore().collection('users').doc(currentUser.uid).collection('receivedLikes').where('fromUserId', '==', 'userId').get();
 
         if (!receivedSnap.empty && isMounted) {
           const data = receivedSnap.docs[0].data();
@@ -267,14 +246,11 @@ export default function UserProfileScreen({ navigation, route }: any) {
   useEffect(() => {
     let isMounted = true;
     const checkFavoriteStatus = async () => {
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
+      const currentUser = auth().currentUser;
       if (!currentUser || !userId) return;
 
       try {
-        const db = getFirestore();
-        const favDocRef = doc(db, 'users', currentUser.uid, 'favorites', userId);
-        const docSnap = await getDoc(favDocRef);
+        const docSnap = await firestore().collection('users').doc(currentUser.uid).collection('favorites').doc(userId).get();
 
         if (isMounted && docSnap.exists()) {
           setIsFavorited(true);
@@ -289,14 +265,11 @@ export default function UserProfileScreen({ navigation, route }: any) {
 
   useEffect(() => {
     const recordFootprint = async () => {
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
+      const currentUser = auth().currentUser;
       if (!currentUser || !user?.id || currentUser.uid === user.id) return;
 
       try {
-        const db = getFirestore();
-        const myDocRef = doc(db, 'users', currentUser.uid);
-        const myDoc = await getDoc(myDocRef);
+        const myDoc = await firestore().collection('users').doc(currentUser.uid).collection('private').doc("settings").get();
 
         if (myDoc.exists()) {
           const myData = myDoc.data();
@@ -306,16 +279,16 @@ export default function UserProfileScreen({ navigation, route }: any) {
           }
         }
 
-        const batch = writeBatch(db);
-        const timestamp = serverTimestamp();
+        const batch = firestore().batch();
+        const timestamp = firestore.FieldValue.serverTimestamp();
 
-        const receivedRef = doc(db, 'users', user.id, 'footprints_received', currentUser.uid);
+        const receivedRef = firestore().collection('users').doc(user.id).collection('footprints_received').doc(currentUser.uid);
         batch.set(receivedRef, {
           visitorId: currentUser.uid,
           createdAt: timestamp,
         }, { merge: true });
 
-        const sentRef = doc(db, 'users', currentUser.uid, 'footprints_sent', user.id);
+        const sentRef = firestore().collection('users').doc(currentUser.uid).collection('footprints_sent').doc(user.id);
         batch.set(sentRef, {
           visitedId: user.id,
           createdAt: timestamp
@@ -332,6 +305,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
     }
   }, [user]);
 
+  //"NOTE"の設定状況確認
   useEffect(() => {
     let isMounted = true;
     const checknotePage = async () => {
@@ -339,9 +313,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
         return;
       }
 
-      const db = getFirestore();
-      const myDocRef = doc(db, 'users', userId)
-      const docSnap = await getDoc(myDocRef);
+      const docSnap = await firestore().collection('users').doc(userId).collection('private').doc('settings').get();
 
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -357,17 +329,14 @@ export default function UserProfileScreen({ navigation, route }: any) {
   useEffect(() => {
     let isMounted = true;
     const checkLikeStatus = async () => {
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
+      const currentUser = auth().currentUser;
       if (!currentUser || !userId) {
         if (isMounted) setCheckingStatus(false);
         return;
       }
 
       try {
-        const db = getFirestore();
-        const likeDocRef = doc(db, 'users', currentUser.uid, 'sentLikes', userId);
-        const docSnap = await getDoc(likeDocRef);
+        const docSnap = await firestore().collection('users').doc(currentUser.uid).collection('sentLikes').doc(userId).get();
 
         if (isMounted && docSnap.exists()) {
           setIsLiked(true);
@@ -385,21 +354,13 @@ export default function UserProfileScreen({ navigation, route }: any) {
   useEffect(() => {
     let isMounted = true;
     const checkReceivedLikeStatus = async () => {
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
+      const currentUser = auth().currentUser;
       if (!currentUser || !userId) return;
 
       try {
-        const db = getFirestore();
-        const queueRef = collection(db, 'likes_queue');
-        const q = query(
-          queueRef,
-          where('fromUserId', '==', userId),
-          where('toUserId', '==', currentUser.uid)
-        );
-        const querySnapshot = await getDocs(q);
+        const receivedSnap = await firestore().collection('users').doc(currentUser.uid).collection('receivedLikes').where('formUserId', '==', userId).get();
 
-        if (isMounted && !querySnapshot.empty) {
+        if (isMounted && !receivedSnap.empty) {
           setHasReceivedLike(true);
         }
       } catch (error) {
@@ -434,15 +395,11 @@ export default function UserProfileScreen({ navigation, route }: any) {
   useEffect(() => {
     let isMounted = true;
     const checkMatchStatus = async () => {
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
+      const currentUser = auth().currentUser;
       if (!currentUser || !userId) return;
 
       try {
-        const db = getFirestore();
-        const matchesRef = collection(db, 'matches');
-        const q = query(matchesRef, where('users', 'array-contains', currentUser.uid));
-        const querySnapshot = await getDocs(q);
+        const querySnapshot = await firestore().collection('matches').where('users', 'array-contains', currentUser.uid).get();
 
         let foundMatchId = null;
         querySnapshot.forEach((doc: any) => {
@@ -485,8 +442,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
   const handleSaveMemo = async () => {
     if (!user) return;
     setIsSavingMemo(true);
-    const auth = getAuth();
-    const currentUser = auth.currentUser;
+    const currentUser = auth().currentUser;
 
     if (!currentUser) {
       setIsSavingMemo(false);
@@ -495,12 +451,10 @@ export default function UserProfileScreen({ navigation, route }: any) {
     }
 
     try {
-      const db = getFirestore();
-      const memoRef = doc(db, 'users', currentUser.uid, 'memos', user.id);
-      await setDoc(memoRef, {
+      await firestore().collection('users').doc(currentUser.uid).collection('memos').doc(user.id).set({
         text: memoText.trim(),
         targetUserId: user.id,
-        updatedAt: serverTimestamp(),
+        updatedAt: firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
 
       setIsMemoModalVisible(false);
@@ -533,18 +487,14 @@ export default function UserProfileScreen({ navigation, route }: any) {
   };
 
   const executeBlock = async () => {
-    const auth = getAuth();
-    const currentUser = auth.currentUser;
-
+    const currentUser = auth().currentUser;
     const targetUser = user;
 
     if (!currentUser || !targetUser) return;
 
     try {
-      const db = getFirestore();
-      const blockRef = doc(db, 'users', currentUser.uid, 'blockedUsers', targetUser.id);
-      await setDoc(blockRef, {
-        blockedAt: serverTimestamp(),
+      await firestore().collection('users').doc(currentUser.uid).collection('blockedUsers').doc(targetUser.id).set({
+        blockedAt: firestore.FieldValue.serverTimestamp(),
         name: targetUser.displayName || '未設定'
       });
       Alert.alert("完了", "ブロックが完了しました。");
@@ -559,8 +509,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
     if (isFavoriteProcessing || !user) return;
     setIsFavoriteProcessing(true);
 
-    const auth = getAuth();
-    const currentUser = auth.currentUser;
+    const currentUser = auth().currentUser;
     if (!currentUser) {
       setIsFavoriteProcessing(false);
       Alert.alert('エラー', 'ログイン状態を確認できませんでした。');
@@ -568,21 +517,20 @@ export default function UserProfileScreen({ navigation, route }: any) {
     }
 
     try {
-      const db = getFirestore();
-      const favRef = doc(db, 'users', currentUser.uid, 'favorites', user.id);
+      const favRef = firestore().collection('users').doc(currentUser.uid).collection('favorites').doc(user.id);
 
       if (isFavorited) {
-        await deleteDoc(favRef);
+        await favRef.delete();
         setIsFavorited(false);
       } else {
-        await setDoc(favRef, {
-          createdAt: serverTimestamp(),
+        await favRef.set({
+          createdAt: firestore.FieldValue.serverTimestamp(),
         });
         setIsFavorited(true);
       }
     } catch (error) {
       console.error('Favorite error:', error);
-      Alert.alert('完了', 'お気に入りに登録しました。');
+      Alert.alert('エラー', '再度お試し下さい。');
     } finally {
       setIsFavoriteProcessing(false);
     }
@@ -607,8 +555,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
   const imageSource = getImageSource();
 
   const ensureAuthenticated = async () => {
-    const auth = getAuth();
-    const currentUser = auth.currentUser;
+    const currentUser = auth().currentUser;
     if (!currentUser) return null;
     try {
       await currentUser.getIdToken(true);
@@ -620,8 +567,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
     setIsProcessing(true);
     setQuestionModalVisible(false);
 
-    const auth = getAuth();
-    let currentUser = auth.currentUser;
+    let currentUser = auth().currentUser;
     if (!currentUser) { currentUser = await ensureAuthenticated(); }
 
     if (!currentUser || !user) {
@@ -631,12 +577,29 @@ export default function UserProfileScreen({ navigation, route }: any) {
     }
 
     try {
-      const db = getFirestore();
-      const queueRef = collection(db, 'likes_queue');
+      if (hasReceivedLike) {
+        setNewMatchId(null);
+        const matchIdStr = [currentUser.uid, user.id].sort().join('_');
+        setNewMatchId(matchIdStr);
 
-      await addDoc(queueRef, {
-        fromUserId: currentUser.uid, toUserId: user.id, answer: answer, createdAt: serverTimestamp(), status: 'pending'
-      });
+        const matchAnswers: Record<string, string | null> = {};
+        if (partnerAnswer) matchAnswers[user.id] = partnerAnswer;
+        if (answer) matchAnswers[currentUser.uid] = answer;
+
+        await firestore().collection('matches').doc(matchIdStr).set({
+          users: [currentUser.uid, user.id],
+          createdAt: firestore.FieldValue.serverTimestamp(),
+          lastMessage: 'マッチングが成立しました！',
+          lastMessageAt: firestore.FieldValue.serverTimestamp(),
+          answers: matchAnswers,
+        });
+      } else {
+        await firestore().collection('users').doc(currentUser.uid).collection('sentLikes').doc(user.id).set({
+          targetUserId: user.id,
+          answer: answer,
+          createdAt: firestore.FieldValue.serverTimestamp(),
+        });
+      }
 
       animateLikeButton();
       showLikePopup();
@@ -861,7 +824,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
 
               <View style={styles.matchBadgeContainer}>
                 <View style={styles.matchBadgeGlass}>
-                  <BlurView intensity={30} tint="light" style={StyleSheet.absoluteFill} />
+                  <BlurView blurType="light" blurAmount={3} style={StyleSheet.absoluteFill} />
                   <View style={styles.matchContent}>
                     <MaterialCommunityIcons name="creation" size={20} color={THEME.accent} style={styles.icon} />
                     <Text style={styles.matchPercentage}>{user.matchRate || 0}%</Text>
@@ -904,7 +867,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
                 <TouchableOpacity activeOpacity={0.8} onPress={handleNotePress} style={styles.subPhotoThumbnailWrapper}>
                   <Image source={NOTE_IMAGE} style={styles.subPhotoThumbnail} resizeMode="cover" />
                   <View style={styles.noteOverlay}>
-                    <LinearGradient colors={['transparent', 'rgba(0,0,0,0.8)']} style={StyleSheet.absoluteFillObject} />
+                    <LinearGradient colors={['transparent', 'rgba(0,0,0,0.8)']} style={StyleSheet.absoluteFill} />
                     <View style={styles.noteIconContainer}>
                       <Ionicons name="book" size={26} color="#FFFFFF" />
                       <Text style={styles.noteLabelText}>Note</Text>
@@ -990,13 +953,13 @@ export default function UserProfileScreen({ navigation, route }: any) {
 
       <View style={styles.headerButtons}>
         <TouchableOpacity style={styles.headerIconBtn} onPress={() => navigation.goBack()}>
-          <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+          <BlurView blurType="dark" blurAmount={3} style={StyleSheet.absoluteFill} />
           <Ionicons name="chevron-back" size={24} color="#FFF" />
         </TouchableOpacity>
 
         <View style={styles.headerRightContainer}>
           <TouchableOpacity style={styles.headerIconBtn} onPress={handleFavoritePress} disabled={isFavoriteProcessing}>
-            <BlurView intensity={30} tint={"dark"} style={StyleSheet.absoluteFill} />
+            <BlurView blurType="dark" blurAmount={3} style={StyleSheet.absoluteFill} />
             {isFavoriteProcessing ? (
               <ActivityIndicator size="small" color="#F59E0B" />
             ) : (
@@ -1005,7 +968,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.headerIconBtn} onPress={handleBlockAction}>
-            <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+            <BlurView blurType="dark" blurAmount={3} style={StyleSheet.absoluteFill} />
             <Ionicons name="ellipsis-horizontal" size={24} color="#FFF" />
           </TouchableOpacity>
         </View>
@@ -1308,7 +1271,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
       <MatchingScreen visible={isMatchingModalVisible} partnerName={user.displayName} onClose={() => setIsMatchingModalVisible(false)}
         onGoToChat={() => {
           setIsMatchingModalVisible(false); navigation.navigate('Chat', {
-            matchId: matchId, recipientId: user.id, recipientName: user.displayName,
+            matchId: newMatchId, recipientId: user.id, recipientName: user.displayName,
             recipientImage: typeof user.photoURL === 'string' ? { uri: user.photoURL } : user.photoURL
           });
         }}
@@ -1381,14 +1344,14 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#F1F5F9',
   },
   subPhotoThumbnail: { width: '100%', height: '100%', },
-  noteOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', },
+  noteOverlay: { ...StyleSheet.absoluteFill, justifyContent: 'center', alignItems: 'center', },
   noteIconContainer: {
     alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255, 255, 255, 0.25)', paddingHorizontal: 16,
     paddingVertical: 12, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)', shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 5,
   },
   noteLabelText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800', marginTop: 4, letterSpacing: 1.5, },
-  subPhotoOverlayInfo: { ...StyleSheet.absoluteFillObject, justifyContent: 'space-between', },
+  subPhotoOverlayInfo: { ...StyleSheet.absoluteFill, justifyContent: 'space-between', },
   subPhotoCommentBadge: {
     alignSelf: 'flex-end', backgroundColor: 'rgba(37, 99, 235, 0.9)', paddingHorizontal: 8, paddingVertical: 6,
     borderBottomLeftRadius: 12,
@@ -1514,7 +1477,7 @@ const styles = StyleSheet.create({
     borderTopColor: THEME.primary, marginTop: -1,
   },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.6)', justifyContent: 'flex-end' },
-  modalBackdrop: { ...StyleSheet.absoluteFillObject },
+  modalBackdrop: { ...StyleSheet.absoluteFill },
   modalContent: {
     backgroundColor: '#FFF', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24,
     paddingBottom: 40, minHeight: 480

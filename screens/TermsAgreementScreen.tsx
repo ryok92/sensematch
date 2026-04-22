@@ -1,27 +1,38 @@
 import React, { useState } from 'react';
 import {
-  Text, View, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator, Linking, Platform, KeyboardAvoidingView
+  Text, View, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator, Linking, Platform, KeyboardAvoidingView, StatusBar,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { getAuth, signOut } from '@react-native-firebase/auth';
-import { getFirestore, doc, setDoc, serverTimestamp } from '@react-native-firebase/firestore';
-import { StatusBar } from 'expo-status-bar';
+import LinearGradient from 'react-native-linear-gradient';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import auth from '@react-native-firebase/auth'
+import firestore from '@react-native-firebase/firestore';
+import { RouteProp } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+
+type RootStackParamList = {
+  TermsAgreement: { onAgreed?: () => void };
+}
+
+type TermsAgreementScreenRouteProp = RouteProp<RootStackParamList, 'TermsAgreement'>;
+type TermsAgreementScreenNavigationProp = StackNavigationProp<RootStackParamList, 'TermsAgreement'>;
+
+type Props = {
+  route: TermsAgreementScreenRouteProp;
+  navigation: TermsAgreementScreenNavigationProp;
+};
 
 const COLORS = {
   primary: '#3B82F6', primaryLight: 'EFF6FF', background: '#F5F8FF', surface: '#FFFFFF', textMain: '#1E293B',
   textSub: '#64748B', border: '#E2E8F0',
 };
 
-export default function TermsAgreementScreen({ navigation, route }) {
+export default function TermsAgreementScreen({ navigation, route }: Props) {
   const onAgreed = route.params?.onAgreed;
-  const [isOver18, setIsOver18] = useState(false);
-  const [isAgreed, setIsAgreed] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const auth = getAuth();
-  const db = getFirestore();
+  const [isOver18, setIsOver18] = useState<boolean>(false);
+  const [isAgreed, setIsAgreed] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
 
-  const openLink = (url) => {
+  const openLink = (url: string) => {
     Linking.openURL(url).catch(err => console.error("URLを開けませんでした", err));
   };
 
@@ -33,19 +44,19 @@ export default function TermsAgreementScreen({ navigation, route }) {
 
     setLoading(true);
     try {
-      const user = auth.currentUser;
+      const user = auth().currentUser;
       if (!user) {
         throw new Error("ユーザーが見つかりません");
       }
 
-      const userRef = doc(db, 'users', user.uid, 'private', 'settings');
-      await setDoc(userRef, {
+      const userRef = firestore().collection('users').doc(user.uid).collection('private').doc('settings');
+      await userRef.set({
         isOver18: true,
         isTermsAgreed: true,
-        agreedAt: serverTimestamp(),
+        agreedAt: firestore.FieldValue.serverTimestamp(),
         is2FAEnabled: false,
         isBasicInfoCompleted: false,
-      }, { marge: true });
+      }, { merge: true });
 
       await user.getIdToken(true);
 
@@ -62,7 +73,7 @@ export default function TermsAgreementScreen({ navigation, route }) {
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      await auth().signOut();
     } catch (error) {
       console.error('ログアウトエラー:', error);
     }
@@ -70,7 +81,7 @@ export default function TermsAgreementScreen({ navigation, route }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="light" />
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
 
       <LinearGradient
         start={{ x: 0, y: 0 }}

@@ -13,7 +13,7 @@ export default StyleSheet.create({
 
   logo: {
     fontSize: 40,
-    fontWeight: '350', // 少し細くして洗練された印象に
+    fontWeight: '300', // 少し細くして洗練された印象に
     color: '#FFFFFF',  // 白文字
     marginBottom: 10,
     textShadowColor: 'rgba(0, 0, 0, 0.1)', // 薄い影で可読性アップ

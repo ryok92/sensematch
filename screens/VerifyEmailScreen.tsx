@@ -1,11 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import {
   Text, View, TouchableOpacity, Alert, ActivityIndicator, StyleSheet, Dimensions, Platform,
-  ScrollView, KeyboardAvoidingView, Linking
+  ScrollView, KeyboardAvoidingView, Linking, StatusBar
 } from 'react-native';
 import auth from '@react-native-firebase/auth';
-import { LinearGradient } from 'expo-linear-gradient';
-import { StatusBar } from 'expo-status-bar';
+import LinearGradient from 'react-native-linear-gradient';
+import { RouteProp } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+
+type RootStackParamList = {
+  VerifyEmail: { email?: string };
+  Login: undefined;
+};
+
+type VerifyEmailScreenRouteProp = RouteProp<RootStackParamList, 'VerifyEmail'>;
+type VerifyEmailScreenNavigationProp = StackNavigationProp<RootStackParamList, 'VerifyEmail'>;
+
+interface Props {
+  route: VerifyEmailScreenRouteProp;
+  navigation: VerifyEmailScreenNavigationProp;
+}
 
 const { width } = Dimensions.get('window');
 
@@ -27,19 +41,15 @@ const actionCodeSettings = {
   },
 };
 
-export default function VerifyEmailScreen({ route, navigation }) {
+export default function VerifyEmailScreen({ route, navigation }: Props) {
   const email = route.params?.email || auth().currentUser?.email;
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<boolean>(false);
 
   useEffect(() => {
-    const handleDeepLink = async (event) => {
+    const handleDeepLink = async (event: { url: string }) => {
       const rawUrl = event.url;
       if (!rawUrl) return;
 
-      if (rawUrl.includes('expo-development-client')) {
-        console.log("開発環境の為、スキップ");
-        return;
-      }
       const url = decodeURIComponent(rawUrl);
       console.log(url);
 
@@ -74,7 +84,7 @@ export default function VerifyEmailScreen({ route, navigation }) {
     const linkingSubscription = Linking.addEventListener('url', handleDeepLink);
 
     Linking.getInitialURL().then((url) => {
-      if (url) handleDeepLink({ url });
+      if (url) handleDeepLink({ url: url });
     });
 
     return () => {
@@ -108,7 +118,7 @@ export default function VerifyEmailScreen({ route, navigation }) {
         await user.reload();
         user = auth().currentUser;
 
-        if (user.emailVerified) {
+        if (user?.emailVerified) {
           console.log("認証確認完了！");
           await user.getIdToken(true);
         } else {
@@ -139,7 +149,7 @@ export default function VerifyEmailScreen({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="light" />
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
 
       <LinearGradient
         start={{ x: 0, y: 0 }}
@@ -203,7 +213,6 @@ export default function VerifyEmailScreen({ route, navigation }) {
             </TouchableOpacity>
 
             {/* サブアクション：ログイン画面へ戻る */}
-            {/* 🎨編集箇所: タップ時にログイン画面へ戻る関数を設定し、テキストを変更しました！ */}
             <TouchableOpacity
               onPress={handleGoBackToLogin}
               style={styles.logoutButton}

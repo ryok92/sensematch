@@ -1,14 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, Alert, ActivityIndicator, Dimensions, StyleSheet, ScrollView, StatusBar, Platform,
+  View, Text, TouchableOpacity, Alert, ActivityIndicator, Dimensions, StyleSheet, ScrollView, StatusBar, Platform, Image
 } from 'react-native';
-import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp } from '@react-native-firebase/firestore';
-import { getAuth } from '@react-native-firebase/auth';
-import { getStorage, ref, getDownloadURL } from '@react-native-firebase/storage';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
+import storage from '@react-native-firebase/storage';
+import { RouteProp } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+
 import questionsDataJson from '../assets/questions.json';
+
+type RootStackParamList = {
+  FirstSenseProfiling: { onCompleted?: () => void };
+  Analysis: { onCompleted?: () => void };
+};
+
+type SenseProfilingScreenRouteProp = RouteProp<RootStackParamList, 'FirstSenseProfiling'>;
+type SenseProfilingScreenNavigationProp = StackNavigationProp<RootStackParamList, 'FirstSenseProfiling'>;
+
+type Props = {
+  route: SenseProfilingScreenRouteProp;
+  navigation: SenseProfilingScreenNavigationProp;
+};
 
 const { width, height } = Dimensions.get('window');
 const COLORS = {
@@ -28,11 +43,11 @@ const allQuestions = questionsDataJson as QuestionMaster[];
 
 const HeaderBackground = () => (
   <View style={styles.headerBackground}>
-    <Image source={require('../assets/brain.webp')} style={styles.headerBackgroundImage} contentFit="cover" />
+    <Image source={require('../assets/brain.webp')} style={styles.headerBackgroundImage} resizeMode="cover" />
   </View>
 );
 
-export default function SenseProfilingScreen({ navigation, route }: { navigation: any, route: any }) {
+export default function SenseProfilingScreen({ navigation, route }: Props) {
   const onCompleted = route.params?.onCompleted;
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [questions, setQuestions] = useState<DisplayQuestion[]>([]);
@@ -44,22 +59,19 @@ export default function SenseProfilingScreen({ navigation, route }: { navigation
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const auth = getAuth();
-  const db = getFirestore();
-
   useEffect(() => {
     const initialzeProfiling = async () => {
       try {
-        const user = auth.currentUser;
+        const user = auth().currentUser;
         if (!user) {
           Alert.alert("エラー", "ログインしていません");
           setLoading(false);
           return;
         }
 
-        const senseDataRef = doc(db, 'users', user.uid, 'senseData', 'profile');
+        const senseDataRef = firestore().collection('users').doc(user.uid).collection('senseData').doc('profile');
 
-        const senseDataSnap = await getDoc(senseDataRef);
+        const senseDataSnap = await senseDataRef.get();
         let answerCount = 0;
         let questionIds: string[] = [];
         let savedAnswers: { [key: string]: string } = {};
@@ -90,7 +102,7 @@ export default function SenseProfilingScreen({ navigation, route }: { navigation
             };
           }
           return null;
-        }).filter(q => q !== null);
+        }).filter(q => q !== null) as DisplayQuestion[];
 
         setQuestions(displayQs);
         setAnswers(savedAnswers);
@@ -151,11 +163,11 @@ export default function SenseProfilingScreen({ navigation, route }: { navigation
     setAiProfiles(newAiProfiles);
 
     try {
-      const user = auth.currentUser;
+      const user = auth().currentUser;
       if (user) {
-        const senseDataRef = doc(db, 'users', user.uid, 'senseData', 'profile');
-        await setDoc(senseDataRef, {
-          senseAnswers: newAnswers, senseProfiles: newAiProfiles, shouldGenerateVector: false, uploadedAt: serverTimestamp(),
+        const senseDataRef = firestore().collection('users').doc(user.uid).collection('senseData').doc('profile');
+        await senseDataRef.set({
+          senseAnswers: newAnswers, senseProfiles: newAiProfiles, shouldGenerateVector: false, uploadedAt: firestore.FieldValue.serverTimestamp(),
           senseAnswerCount: currentQuestionIndex + 1,
         }, { merge: true });
       }
@@ -165,8 +177,8 @@ export default function SenseProfilingScreen({ navigation, route }: { navigation
         setSelectedOption(null);
       } else {
         if (user) {
-          const userRef = doc(db, 'users', user.uid, 'senseData', 'profile');
-          await updateDoc(userRef, {
+          const userRef = firestore().collection('users').doc(user.uid).collection('senseData').doc('profile');
+          await userRef.update({
             isProfilingCompleted: true,
           });
 
@@ -183,12 +195,11 @@ export default function SenseProfilingScreen({ navigation, route }: { navigation
 
   const handleInterrupt = async () => {
     try {
-      const user = auth.currentUser;
+      const user = auth().currentUser;
       if (!user) return;
 
-      const senseuserRef = doc(db, 'users', user.uid, 'senseData', 'profile');
-
-      await updateDoc(senseuserRef, {
+      const senseuserRef = firestore().collection('users').doc(user.uid).collection('senseData').doc('profile');
+      await senseuserRef.update({
         shouldGenerateVector: true,
         isProfilingCompleted: true,
       });
@@ -242,7 +253,7 @@ export default function SenseProfilingScreen({ navigation, route }: { navigation
             {currentQuestion?.type === 'image_choice' && (
               <View style={styles.imageQuestionContainer}>
                 {imageUrl ? (
-                  <Image source={{ uri: imageUrl }} style={styles.fullQuestionImage} contentFit="cover" cachePolicy="memory-disk" />
+                  <Image source={{ uri: imageUrl }} style={styles.fullQuestionImage} resizeMode="cover" />
                 ) : (
                   <View style={[styles.fullQuestionImage, { justifyContent: 'center', alignItems: 'center' }]}>
                     <ActivityIndicator color={COLORS.primary} />
@@ -309,7 +320,7 @@ const styles = StyleSheet.create({
     position: 'absolute', top: 0, left: 0, right: 0, height: 320, borderBottomLeftRadius: 40, borderBottomRightRadius: 40,
     overflow: 'hidden', backgroundColor: COLORS.primary,
   },
-  headerBackgroundImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%', opacity: 0.8, },
+  headerBackgroundImage: { ...StyleSheet.absoluteFill, width: '100%', height: '100%', opacity: 0.8, },
   introContainer: { flex: 1, alignItems: 'center', paddingTop: 10, paddingHorizontal: 24, },
   introTitle: {
     fontSize: 28, fontWeight: '900', color: '#FFFFFF', marginBottom: 12, textShadowColor: 'rgba(0,0,0,0.4)',
@@ -350,7 +361,7 @@ const styles = StyleSheet.create({
     shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 4,
   },
   fullQuestionImage: { width: '100%', height: '100%' },
-  imageOverlay: { ...StyleSheet.absoluteFillObject, borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)', borderRadius: 20, },
+  imageOverlay: { ...StyleSheet.absoluteFill, borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)', borderRadius: 20, },
   questionText: { fontSize: 18, fontWeight: 'bold', color: COLORS.textMain, textAlign: 'center', marginBottom: 30, lineHeight: 28, },
   optionsContainer: { width: '100%', gap: 12, },
   optionButton: {

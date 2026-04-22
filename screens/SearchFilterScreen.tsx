@@ -4,15 +4,17 @@ import {
   PanResponder, Animated, Easing, LayoutChangeEvent, PanResponderGestureState, GestureResponderEvent
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-
-// 🎨編集箇所: Expoのvector-iconsからRN CLI用のreact-native-vector-iconsに変更
 import Ionicons from 'react-native-vector-icons/Ionicons';
-
-// 🎨編集箇所: TypeScript 用のナビゲーション型定義を追加
 import { RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 
-// 🎨編集箇所: StackNavigator のパラメータ型を定義
+const { width, height } = Dimensions.get('window');
+
+const COLORS = {
+  primary: '#4a90E2', primaryLight: '#F0F7FF', text: '#333333', subText: '#8E8E93', border: '#E5E5EA',
+  background: '#FFFFFF', modalOverlay: 'rgba(0,0,0,0.4)',
+};
+
 type RootStackParamList = {
   SearchFilter: {
     currentFilters?: any;
@@ -30,13 +32,6 @@ type Props = {
   navigation: SearchFilterScreenNavigationProp;
 };
 
-const { width, height } = Dimensions.get('window');
-
-const COLORS = {
-  primary: '#4a90E2', primaryLight: '#F0F7FF', text: '#333333', subText: '#8E8E93', border: '#E5E5EA',
-  background: '#FFFFFF', modalOverlay: 'rgba(0,0,0,0.4)',
-};
-
 const REGIONS = [
   { name: '北海道・東北', prefs: ['北海道', '青森県', '岩手県', '宮城県', '秋田県', '山形県', '福島県'] },
   { name: '関東', prefs: ['茨城県', '栃木県', '群馬県', '埼玉県', '千葉県', '東京都', '神奈川県'] },
@@ -47,7 +42,6 @@ const REGIONS = [
   { name: '九州・沖縄', prefs: ['福岡県', '佐賀県', '長崎県', '熊本県', '大分県', '宮崎県', '鹿児島県', '沖縄県'] },
 ];
 
-// 🎨編集箇所: RangeSlider の Props に型を定義
 type RangeSliderProps = {
   min: number;
   max: number;
@@ -58,18 +52,17 @@ type RangeSliderProps = {
   label: string;
   unit?: string;
 };
-
 const RangeSlider = ({ min, max, step = 1, initialLow, initialHigh, onValueChange, label, unit = '' }: RangeSliderProps) => {
-  const [sliderWidth, setSliderWidth] = useState<number>(0);
-  const [low, setLow] = useState<number>(initialLow);
-  const [high, setHigh] = useState<number>(initialHigh);
+  const [sliderWidth, setSliderWidth] = useState(0);
+  const [low, setLow] = useState(initialLow);
+  const [high, setHigh] = useState(initialHigh);
 
-  const widthRef = useRef<number>(0);
-  const lowRef = useRef<number>(initialLow);
-  const highRef = useRef<number>(initialHigh);
+  const widthRef = useRef(0);
+  const lowRef = useRef(initialLow);
+  const highRef = useRef(initialHigh);
 
-  const gestureStartLow = useRef<number>(initialLow);
-  const gestureStartHigh = useRef<number>(initialHigh);
+  const gestureStartLow = useRef(initialLow);
+  const gestureStartHigh = useRef(initialHigh);
 
   useEffect(() => { setLow(initialLow); }, [initialLow]);
   useEffect(() => { setHigh(initialHigh); }, [initialHigh]);
@@ -77,7 +70,6 @@ const RangeSlider = ({ min, max, step = 1, initialLow, initialHigh, onValueChang
   useEffect(() => { lowRef.current = low; }, [low]);
   useEffect(() => { highRef.current = high; }, [high]);
 
-  // 🎨編集箇所: LayoutChangeEventの型を明示
   const handleLayout = (e: LayoutChangeEvent) => {
     const w = e.nativeEvent.layout.width;
     setSliderWidth(w);
@@ -95,7 +87,7 @@ const RangeSlider = ({ min, max, step = 1, initialLow, initialHigh, onValueChang
       onPanResponderGrant: () => {
         gestureStartLow.current = lowRef.current;
       },
-      onPanResponderMove: (evt: GestureResponderEvent, gestureState: PanResponderGestureState) => {
+      onPanResponderMove: (evt, gestureState) => {
         if (widthRef.current === 0) return;
 
         const range = max - min;
@@ -121,7 +113,7 @@ const RangeSlider = ({ min, max, step = 1, initialLow, initialHigh, onValueChang
       onPanResponderGrant: () => {
         gestureStartHigh.current = highRef.current;
       },
-      onPanResponderMove: (evt: GestureResponderEvent, gestureState: PanResponderGestureState) => {
+      onPanResponderMove: (evt, gestureState) => {
         if (widthRef.current === 0) return;
 
         const range = max - min;
@@ -216,13 +208,11 @@ const OPTIONS = {
   cookingFrequency: ['ほぼ毎日作る', '週に2〜3回程度', '休日や気が向いた時だけ', '今はしないが興味はある', '覚えたい', '食べる専門'],
 };
 
-// 🎨編集箇所: SelectChip の Props に型を定義
 type SelectChipProps = {
   label: string;
   selected: boolean;
   onPress: () => void;
 };
-
 const SelectChip = ({ label, selected, onPress }: SelectChipProps) => (
   <TouchableOpacity
     style={[
@@ -241,15 +231,13 @@ const SelectChip = ({ label, selected, onPress }: SelectChipProps) => (
   </TouchableOpacity>
 );
 
-// 🎨編集箇所: DetailSelectButton の Props に型を定義
 type DetailSelectButtonProps = {
   label: string;
   value: string;
-  isActive?: boolean; // 元コードから存在していたプロパティを型に反映
+  isActive?: boolean;
   onPress: () => void;
 };
-
-const DetailSelectButton = ({ label, value, isActive, onPress }: DetailSelectButtonProps) => (
+const DetailSelectButton = ({ label, value, onPress }: DetailSelectButtonProps) => (
   <TouchableOpacity
     style={styles.detailButton}
     activeOpacity={0.7}
@@ -263,19 +251,15 @@ const DetailSelectButton = ({ label, value, isActive, onPress }: DetailSelectBut
   </TouchableOpacity>
 );
 
-// 🎨編集箇所: PrefectureModal の Props に型を定義
 type PrefectureModalProps = {
   visible: boolean;
   selectedValues: string[];
   onSelect: (values: string[]) => void;
   onClose: () => void;
 };
-
 const PrefectureModal = ({ visible, selectedValues, onSelect, onClose }: PrefectureModalProps) => {
   const [tempSelected, setTempSelected] = useState<string[]>([]);
-
   const insets = useSafeAreaInsets();
-
   const panY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -304,15 +288,15 @@ const PrefectureModal = ({ visible, selectedValues, onSelect, onClose }: Prefect
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState: PanResponderGestureState) => {
+      onMoveShouldSetPanResponder: (_, gestureState) => {
         return gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
       },
-      onPanResponderMove: (_, gestureState: PanResponderGestureState) => {
+      onPanResponderMove: (_, gestureState) => {
         if (gestureState.dy > 0) {
           panY.setValue(gestureState.dy);
         }
       },
-      onPanResponderRelease: (_, gestureState: PanResponderGestureState) => {
+      onPanResponderRelease: (_, gestureState) => {
         if (gestureState.dy > 150 || gestureState.vy > 0.5) {
           closeWithAnimation();
         } else {
@@ -408,7 +392,6 @@ const PrefectureModal = ({ visible, selectedValues, onSelect, onClose }: Prefect
   );
 };
 
-// 🎨編集箇所: SelectionModal の Props に型を定義
 type SelectionModalProps = {
   visible: boolean;
   title: string;
@@ -417,7 +400,6 @@ type SelectionModalProps = {
   onSelect: (values: string[]) => void;
   onClose: () => void;
 };
-
 const SelectionModal = ({ visible, title, options, selectedValues, onSelect, onClose }: SelectionModalProps) => {
   const [tempSelected, setTempSelected] = useState<string[]>([]);
   const insets = useSafeAreaInsets();
@@ -449,15 +431,15 @@ const SelectionModal = ({ visible, title, options, selectedValues, onSelect, onC
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState: PanResponderGestureState) => {
+      onMoveShouldSetPanResponder: (_, gestureState) => {
         return gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
       },
-      onPanResponderMove: (_, gestureState: PanResponderGestureState) => {
+      onPanResponderMove: (_, gestureState) => {
         if (gestureState.dy > 0) {
           panY.setValue(gestureState.dy);
         }
       },
-      onPanResponderRelease: (_, gestureState: PanResponderGestureState) => {
+      onPanResponderRelease: (_, gestureState) => {
         if (gestureState.dy > 150 || gestureState.vy > 0.5) {
           closeWithAnimation();
         } else {
@@ -562,13 +544,10 @@ const SelectionModal = ({ visible, title, options, selectedValues, onSelect, onC
   );
 };
 
-// 🎨編集箇所: コンポーネントに Props の型を適用
 export default function SearchFilterScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const initialFilters = route.params?.currentFilters || {};
   const myGender = route.params?.myGender;
-  
-  // 🎨編集箇所: 各種 useState に型を明示
   const [sortType, setSortType] = useState<string>(initialFilters.sortType || 'match');
   const [hasPhoto, setHasPhoto] = useState<boolean>(initialFilters.hasPhoto !== undefined ? initialFilters.hasPhoto : true);
   const [minAge, setMinAge] = useState<number>(initialFilters.minAge || 20);
@@ -578,7 +557,7 @@ export default function SearchFilterScreen({ navigation, route }: Props) {
   const [maxHeight, setMaxHeight] = useState<number>(initialFilters.maxHeight || 180);
   const [residenceIn, setResidenceIn] = useState<string[]>(() => {
     if (initialFilters.residenceIn && initialFilters.residenceIn.length > 0) {
-      return initialFilters.residenceIn;
+      return initialFilters.residenceIn as string[];
     }
     const userRegion = initialFilters.regionName;
     if (userRegion && userRegion !== '未設定') {
@@ -919,7 +898,7 @@ export default function SearchFilterScreen({ navigation, route }: Props) {
           title={modalConfig.title}
           options={modalConfig.options}
           selectedValues={modalConfig.values}
-          onSelect={modalConfig.setter as (values: string[]) => void}
+          onSelect={modalConfig.setter}
           onClose={() => setModalVisible(false)}
         />
 
@@ -947,7 +926,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F2F2F2' },
   headerTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text },
   resetText: { fontSize: 14, color: COLORS.subText },
-  closeButton: { padding: 4 }, // 元ファイルにはなかったので追加しました
+  closeButton: { padding: 4 },
   iconButton: { padding: 4 },
   scrollContent: { paddingBottom: 100 },
   section: { paddingHorizontal: 20, paddingVertical: 24 },
@@ -956,10 +935,10 @@ const styles = StyleSheet.create({
   chipContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 24, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.background, marginRight: 8, marginBottom: 8 },
   chipSelected: { backgroundColor: COLORS.primary, borderColor: COLORS.primary, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 },
+  chipUnSelected: { backgroundColor: COLORS.background, borderColor: COLORS.border, },
   chipText: { fontSize: 13, fontWeight: '600', color: COLORS.subText },
   chipTextSelected: { color: '#FFF' },
-  chipUnSelected: {},
-  chipTextUnselected: {},
+  chipTextUnselected: { color: COLORS.subText },
   rangeContainer: { marginBottom: 20 },
   rangeHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
   rangeLabel: { fontSize: 14, fontWeight: '600', color: COLORS.text },
@@ -970,7 +949,7 @@ const styles = StyleSheet.create({
   thumb: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#FFF', borderWidth: 0.5, borderColor: 'rgba(0,0,0,0.1)', position: 'absolute', top: 6, marginLeft: -14, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 3, elevation: 4, justifyContent: 'center', alignItems: 'center' },
   thumbLabel: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.primary },
   locationContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
-  locationValueRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  locationValueRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.subText, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
   locationText: { marginLeft: 4, fontSize: 14, fontWeight: '600', color: COLORS.text },
   noteText: { fontSize: 11, color: COLORS.subText, marginTop: 8 },
   heightFilterContainer: { paddingVertical: 16 },
@@ -989,7 +968,7 @@ const styles = StyleSheet.create({
   applyButton: { backgroundColor: COLORS.primary, borderRadius: 30, paddingVertical: 16, alignItems: 'center', shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
   applyButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
   modalOverlay: { flex: 1, backgroundColor: COLORS.modalOverlay, justifyContent: 'flex-end' },
-  modalBackdrop: { ...StyleSheet.absoluteFillObject },
+  modalBackdrop: { ...StyleSheet.absoluteFill },
   modalSheet: { backgroundColor: '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '85%', paddingBottom: 40 },
   modalHandleContainer: { alignItems: 'center', paddingTop: 12, paddingBottom: 8, height: 30, width: '100%' },
   modalHandle: { width: 40, height: 4, backgroundColor: '#E0E0E0', borderRadius: 2 },

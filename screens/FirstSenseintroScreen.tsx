@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, StatusBar, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
-import { Image as ExpoImage } from 'expo-image';
-import { getStorage, ref, getDownloadURL } from '@react-native-firebase/storage';
-import { getFirestore, doc, getDoc, writeBatch, serverTimestamp } from '@react-native-firebase/firestore';
-import { getAuth } from '@react-native-firebase/auth';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
+import storage from '@react-native-firebase/storage';
+
 import questionsDataJson from '../assets/questions.json';
 
 const BRAIN_IMAGE = require('../assets/brain.webp');
@@ -15,7 +16,7 @@ const COLORS = {
   textSub: '#64748B', border: '#E2E8F0',
 };
 
-interface FeatureItemProps { icon: keyof typeof MaterialCommunityIcons.glyphMap; title: string; description: string; }
+interface FeatureItemProps { icon: string; title: string; description: string; }
 
 const FeatureItem: React.FC<FeatureItemProps> = ({ icon, title, description }) => (
   <View style={styles.featureItem}>
@@ -31,9 +32,6 @@ const FeatureItem: React.FC<FeatureItemProps> = ({ icon, title, description }) =
 
 export default function SenseIntroScreen({ navigation }: { navigation: any }) {
   const [isInitializing, setIsInitializing] = useState(true);
-
-  const auth = getAuth();
-  const db = getFirestore();
 
   const generate100QuestionIds = (): string[] => {
     const allQuestions = questionsDataJson as any[];
@@ -64,16 +62,16 @@ export default function SenseIntroScreen({ navigation }: { navigation: any }) {
   useEffect(() => {
     const initializeAndPrefetch = async () => {
       try {
-        const user = auth.currentUser;
+        const user = auth().currentUser;
         if (!user) {
           setIsInitializing(false);
           return;
         }
 
-        const userRef = doc(db, 'users', user.uid, 'private', 'settings');
-        const senseDataRef = doc(db, 'users', user.uid, 'senseData', 'profile');
+        const userRef = firestore().collection('users').doc(user.uid).collection('private').doc('settings');
+        const senseDataRef = firestore().collection('users').doc(user.uid).collection('senseData').doc('profile');
 
-        const senseDataSnap = await getDoc(senseDataRef);
+        const senseDataSnap = await senseDataRef.get();
         let questionIds: string[] = [];
 
         if (senseDataSnap.exists()) {
@@ -84,7 +82,6 @@ export default function SenseIntroScreen({ navigation }: { navigation: any }) {
         if (questionIds.length === 0) {
           questionIds = generate100QuestionIds();
 
-          const storage = getStorage();
           const allQuestions = questionsDataJson as any[];
           const targetQuestions = questionIds.map(id => allQuestions.find(q => q.id === id))
             .filter(q => q && q.type === 'image_choice' && q.image_url);
@@ -99,7 +96,7 @@ export default function SenseIntroScreen({ navigation }: { navigation: any }) {
                   urlsToPrefetch.push(q.image_url);
                 } else {
                   try {
-                    const url = await getDownloadURL(ref(storage, q.image_url));
+                    const url = await storage().ref(q.image_url).getDownloadURL();
                     imageUrlsDict[q.id] = url;
                     urlsToPrefetch.push(url);
                   } catch (e) {
@@ -110,10 +107,10 @@ export default function SenseIntroScreen({ navigation }: { navigation: any }) {
             })
           );
 
-          const batch = writeBatch(db);
+          const batch = firestore().batch();
           batch.set(senseDataRef, {
             senseQuestionIds: questionIds, senseAnswers: {}, senseProfiles: {}, shouldGenerateVector: false,
-            senseImageUrls: imageUrlsDict, createdAt: serverTimestamp(),
+            senseImageUrls: imageUrlsDict, createdAt: firestore.FieldValue.serverTimestamp(),
           }, { merge: true });
 
           batch.set(userRef, {
@@ -123,13 +120,13 @@ export default function SenseIntroScreen({ navigation }: { navigation: any }) {
           await batch.commit();
 
           if (urlsToPrefetch.length > 0) {
-            ExpoImage.prefetch(urlsToPrefetch);
+            urlsToPrefetch.forEach(url => Image.prefetch(url));
           }
         } else {
           const fetchedUrls = senseDataSnap.data()?.senseImageUrls || {};
           const urlsToPrefetch = Object.values(fetchedUrls) as string[];
           if (urlsToPrefetch.length > 0) {
-            ExpoImage.prefetch(urlsToPrefetch);
+            urlsToPrefetch.forEach(url => Image.prefetch(url));
           }
         }
 
@@ -199,7 +196,7 @@ const styles = StyleSheet.create({
     position: 'absolute', top: 0, left: 0, right: 0, height: 320, borderBottomLeftRadius: 40, borderBottomRightRadius: 40,
     overflow: 'hidden', backgroundColor: COLORS.primary,
   },
-  headerBackgroundImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%', opacity: 0.8 },
+  headerBackgroundImage: { ...StyleSheet.absoluteFill, width: '100%', height: '100%', opacity: 0.8 },
   safeArea: { flex: 1 },
   header: { flexDirection: 'row', height: 40, alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, zIndex: 10 },
   backButton: {

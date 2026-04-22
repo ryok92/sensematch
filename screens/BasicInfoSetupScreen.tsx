@@ -1,13 +1,27 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert, ActivityIndicator, Dimensions
+  View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert, ActivityIndicator, Dimensions, StatusBar
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { getAuth } from '@react-native-firebase/auth';
-import { getFirestore, doc, Timestamp, serverTimestamp, writeBatch } from '@react-native-firebase/firestore';
-import { StatusBar } from 'expo-status-bar';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import LinearGradient from 'react-native-linear-gradient';
+import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
+import { RouteProp } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+
+type RootStackParamList = {
+  BasicInfoSetup: { onCompleted?: () => void };
+  SenseProfiling: undefined;
+};
+
+type BasicInfoSetupScreenRouteProp = RouteProp<RootStackParamList, 'BasicInfoSetup'>;
+type BasicInfoSetupScreenNavigationProp = StackNavigationProp<RootStackParamList, 'BasicInfoSetup'>;
+
+type Props = {
+  route: BasicInfoSetupScreenRouteProp;
+  navigation: BasicInfoSetupScreenNavigationProp;
+};
 
 const { width } = Dimensions.get('window');
 
@@ -38,7 +52,8 @@ const HeaderBackground = () => (
   </LinearGradient>
 );
 
-const IntroductionView = ({ onStart }) => (
+type IntroductionViewProps = { onStart: () => void };
+const IntroductionView = ({ onStart }: IntroductionViewProps) => (
   <View style={styles.introContainer}>
     <View style={styles.introIconContainer}>
       <Ionicons name="person-circle-outline" size={68} color="#FFFFFF" />
@@ -73,7 +88,8 @@ const IntroductionView = ({ onStart }) => (
   </View>
 );
 
-const StepHeader = ({ current, total }) => (
+type StepHeaderProps = { current: number; total: number };
+const StepHeader = ({ current, total }: StepHeaderProps) => (
   <View style={styles.headerContainer}>
     <View style={styles.progressBarBackground}>
       <View style={[styles.progressBarFill, { width: `${(current / total) * 100}%` }]} />
@@ -82,7 +98,8 @@ const StepHeader = ({ current, total }) => (
   </View>
 );
 
-const Step1_Gender = ({ gender, setGender }) => (
+type Step1GenderProps = { gender: string | null; setGender: (gender: string) => void };
+const Step1_Gender = ({ gender, setGender }: Step1GenderProps) => (
   <View style={styles.cardContent}>
     <View style={styles.titleArea}>
       <Text style={styles.mainTitle}>性別を教えてください</Text>
@@ -128,7 +145,8 @@ const Step1_Gender = ({ gender, setGender }) => (
   </View>
 );
 
-const Step2_Location = ({ location, setLocation }) => (
+type Step2LocationProps = { location: string; setLocation: (loc: string) => void };
+const Step2_Location = ({ location, setLocation }: Step2LocationProps) => (
   <View style={styles.stepContent}>
     <View style={styles.titleArea}>
       <Text style={styles.mainTitle}>お住まいはどちらですか？</Text>
@@ -158,11 +176,16 @@ const Step2_Location = ({ location, setLocation }) => (
   </View>
 );
 
+type Step3BirthdateProps = {
+  birthYear: string; setBirthYear: (val: string) => void;
+  birthMonth: string; setBirthMonth: (val: string) => void;
+  birthDay: string; setBirthDay: (val: string) => void;
+}
 const Step3_Birthdate = ({
   birthYear, setBirthYear,
   birthMonth, setBirthMonth,
   birthDay, setBirthDay
-}) => (
+}: Step3BirthdateProps) => (
   <View style={styles.cardContent}>
     <View style={styles.titleArea}>
       <Text style={styles.mainTitle}>生年月日を入力</Text>
@@ -214,7 +237,8 @@ const Step3_Birthdate = ({
   </View>
 );
 
-const Step4_DisplayName = ({ displayName, setDisplayName }) => (
+type Step4DisplayNameProps = { displayName: string; setDisplayName: (val: string) => void };
+const Step4_DisplayName = ({ displayName, setDisplayName }: Step4DisplayNameProps) => (
   <View style={styles.cardContent}>
     <View style={styles.titleArea}>
       <Text style={styles.mainTitle}>表示名を設定</Text>
@@ -234,16 +258,16 @@ const Step4_DisplayName = ({ displayName, setDisplayName }) => (
   </View>
 );
 
-export default function BasicInfoSetupScreen({ navigation, route }) {
+export default function BasicInfoSetupScreen({ navigation, route }: Props) {
   const onCompleted = route.params?.onCompleted;
-  const [step, setStep] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [gender, setGender] = useState(null);
-  const [location, setLocation] = useState('');
-  const [birthYear, setBirthYear] = useState('');
-  const [birthMonth, setBirthMonth] = useState('');
-  const [birthDay, setBirthDay] = useState('');
-  const [displayName, setDisplayName] = useState('');
+  const [step, setStep] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [gender, setGender] = useState<string | null>(null);
+  const [location, setLocation] = useState<string>('');
+  const [birthYear, setBirthYear] = useState<string>('');
+  const [birthMonth, setBirthMonth] = useState<string>('');
+  const [birthDay, setBirthDay] = useState<string>('');
+  const [displayName, setDisplayName] = useState<string>('');
 
   const handleComplete = async () => {
     if (!displayName.trim()) {
@@ -252,8 +276,7 @@ export default function BasicInfoSetupScreen({ navigation, route }) {
     }
     setLoading(true);
     try {
-      const auth = getAuth();
-      const user = auth.currentUser;
+      const user = auth().currentUser;
       if (!user) throw new Error('No user found');
 
       const year = parseInt(birthYear);
@@ -265,18 +288,17 @@ export default function BasicInfoSetupScreen({ navigation, route }) {
         throw new Error('Invalid Date');
       }
 
-      const db = getFirestore();
-      const batch = writeBatch(db);
+      const batch = firestore().batch();
 
-      const userRef = doc(db, 'users', user.uid);
-      const userPrivateRef = doc(db, 'users', user.uid, 'private', 'settings');
+      const userRef = firestore().collection('users').doc(user.uid);
+      const userPrivateRef = firestore().collection('users').doc(user.uid).collection('private').doc('settings');
 
       batch.set(userRef, {
         gender,
         location,
-        birthDate: Timestamp.fromDate(birthDate),
+        birthDate: firestore.Timestamp.fromDate(birthDate),
         displayName,
-        updatedAt: serverTimestamp(),
+        updatedAt: firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
 
       batch.set(userPrivateRef, {
@@ -356,7 +378,7 @@ export default function BasicInfoSetupScreen({ navigation, route }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="light" />
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
 
       <HeaderBackground />
 
@@ -425,7 +447,6 @@ export default function BasicInfoSetupScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background, },
-
   headerBackground: {
     position: 'absolute', top: 0, left: 0, right: 0, height: 290, borderBottomLeftRadius: 40,
     borderBottomRightRadius: 40, overflow: 'hidden',
@@ -436,7 +457,6 @@ const styles = StyleSheet.create({
   decorativeCircle2: {
     position: 'absolute', top: 128, left: -40, width: 128, height: 128, borderRadius: 64, backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
-
   introContainer: { flex: 1, alignItems: 'center', paddingTop: 20, paddingHorizontal: 30, },
   introIconContainer: {
     marginBottom: 15, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 5,
@@ -469,7 +489,6 @@ const styles = StyleSheet.create({
   progressBarBackground: { height: 6, backgroundColor: 'rgba(255, 255, 255, 0.3)', borderRadius: 3, marginBottom: 8, },
   progressBarFill: { height: '100%', backgroundColor: '#FFFFFF', borderRadius: 3, },
   stepIndicator: { fontSize: 12, color: '#FFFFFF', fontWeight: 'bold', textAlign: 'right', opacity: 0.9, },
-
   cardContainer: {
     flex: 1, backgroundColor: COLORS.surface, marginHorizontal: 16, borderRadius: 28, paddingVertical: 10, shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 10, overflow: 'hidden',
@@ -487,7 +506,6 @@ const styles = StyleSheet.create({
   },
   warningText: { fontSize: 12, color: '#FF6B6B', marginLeft: 6, fontWeight: 'bold', textAlign: 'center', },
   infoText: { fontSize: 12, color: COLORS.textSub, marginLeft: 6, fontWeight: 'bold', },
-
   gridContainer: { flexDirection: 'column', gap: 12, },
   cleanCard: {
     width: '100%', alignSelf: 'center', flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface,

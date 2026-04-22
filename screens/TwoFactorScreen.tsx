@@ -2,18 +2,37 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Alert, ActivityIndicator, Linking } from 'react-native';
 import styles from '../styles';
 import auth from '@react-native-firebase/auth';
+import { RouteProp } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
 
-export default function TwoFactorScreen({ navigation, route }) {
+type RootStackParamList = {
+  TwoFactor: { onVerified: () => void };
+};
+
+type TwoFactorScreenRouteProp = RouteProp<RootStackParamList, 'TwoFactor'>;
+type TwoFactorScreenNavigationProp = StackNavigationProp<RootStackParamList, 'TwoFactor'>;
+
+type Props = {
+  route: TwoFactorScreenRouteProp;
+  navigation: TwoFactorScreenNavigationProp;
+};
+
+export default function TwoFactorScreen({ navigation, route }:Props) {
   const { onVerified } = route.params;
   const user = auth().currentUser;
-  const [loading, setLoading] = useState(false);
-  const [linkSent, setLinkSent] = useState(false);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [linkSent, setLinkSent] = useState<boolean>(false);
 
   const sendSignInLink = async () => {
+    if(!user || !user.email){
+      Alert.alert("エラー", "ユーザー情報が取得できません。");
+      return;
+    }
+
     setLoading(true);
     try {
       const actionCodeSettings = {
-        url: 'synapseai://auth', 
+        url: 'synapseai://auth',
         handleCodeInApp: true,
         iOS: { bundleId: 'com.synapse.app' },
         android: { packageName: 'com.synapse.app', installApp: true, minimumVersion: '12' },
@@ -33,19 +52,21 @@ export default function TwoFactorScreen({ navigation, route }) {
     return () => { unsubscribe.remove(); };
   }, []);
 
-  const handleDeepLink = async (url) => {
-    if (auth().isSignInWithEmailLink(url)) {
+  const handleDeepLink = async (url:string) => {
+    if(!user || !user.email) return;
+
+    if (await auth().isSignInWithEmailLink(url)) {
       setLoading(true);
       try {
         await auth().signInWithEmailLink(user.email, url);
-        onVerified(); 
+        onVerified();
       } catch (error) {
         Alert.alert("エラー", "リンクが無効です。");
       }
       setLoading(false);
     }
   };
-  
+
   return (
     <View style={styles.container}>
       <Text style={styles.logo}>2段階認証</Text>
