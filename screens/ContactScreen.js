@@ -10,7 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ContactScreen({ navigation }) {

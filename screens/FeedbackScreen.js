@@ -1,24 +1,23 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert, KeyboardAvoidingView, Platform, ActionSheetIOS } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function FeedbackScreen({ navigation }) {
-  const [category, setCategory] = useState('機能追加の要望'); // デフォルト値
+  const [category, setCategory] = useState('機能追加の要望');
   const [message, setMessage] = useState('');
 
-  // カテゴリ選択肢
   const categories = [
     '機能追加の要望',
     'デザイン・UIについて',
     'マッチングの仕組みについて',
     'イベント・キャンペーンについて',
     'その他',
-    'キャンセル' // ActionSheet用
+    'キャンセル'
   ];
 
   const handleCategoryPress = () => {
-    // 簡易的な実装としてActionSheetを表示（Androidの場合はModal等で実装推奨だが、今回はコード簡略化のためiOS想定またはアラートで代用）
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
@@ -32,7 +31,6 @@ export default function FeedbackScreen({ navigation }) {
         }
       );
     } else {
-      // Android等での簡易実装（実際はPickerやModalを使用）
       Alert.alert(
         "カテゴリ選択",
         "カテゴリを選んでください",
@@ -47,9 +45,8 @@ export default function FeedbackScreen({ navigation }) {
   const handleSubmit = () => {
     if (!message.trim()) {
       Alert.alert("エラー", "ご意見を入力してください");
-      return; 
+      return;
     }
-    // ここで送信処理 (category と message を送信)
     Alert.alert("ありがとうございます！", "貴重なご意見ありがとうございます。サービス向上の参考にさせていただきます。", [
       { text: "OK", onPress: () => navigation.goBack() }
     ]);
@@ -66,21 +63,20 @@ export default function FeedbackScreen({ navigation }) {
           <View style={{ width: 40 }} />
         </View>
 
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{flex:1}}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
           <ScrollView contentContainerStyle={styles.content}>
-            
+
             <View style={styles.infoBox}>
               <MaterialCommunityIcons name="comment-quote-outline" size={24} color="#F59E0B" style={styles.infoIcon} />
               <Text style={styles.infoText}>
                 サービス向上のため、あなたのご意見をお聞かせください。{'\n'}
-                <Text style={{fontSize: 11, color: '#B45309'}}>※こちらにお送りいただいた内容への個別の返信は行っておりませんので、予めご了承ください。</Text>
+                <Text style={{ fontSize: 11, color: '#B45309' }}>※こちらにお送りいただいた内容への個別の返信は行っておりませんので、予めご了承ください。</Text>
               </Text>
             </View>
-            
-            {/* ★ NEW: カテゴリ選択リスト */}
+
             <Text style={styles.label}>ご意見の種別</Text>
-            <TouchableOpacity 
-              style={styles.inputContainer} 
+            <TouchableOpacity
+              style={styles.inputContainer}
               onPress={handleCategoryPress}
               activeOpacity={0.7}
             >
@@ -103,7 +99,7 @@ export default function FeedbackScreen({ navigation }) {
 
             <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
               <Text style={styles.submitButtonText}>送信</Text>
-              <Ionicons name="paper-plane-outline" size={18} color="#FFF" style={{marginLeft: 8}} />
+              <Ionicons name="paper-plane-outline" size={18} color="#FFF" style={{ marginLeft: 8 }} />
             </TouchableOpacity>
 
           </ScrollView>

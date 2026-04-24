@@ -16,8 +16,9 @@ import {
   Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import { LinearGradient } from 'react-native-linear-gradient';
 import * as Clipboard from 'expo-clipboard';
 
 import auth from '@react-native-firebase/auth';

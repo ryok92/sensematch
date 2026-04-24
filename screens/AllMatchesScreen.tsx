@@ -3,8 +3,8 @@ import { View, Text, FlatList, Image, TouchableOpacity, TextInput, StyleSheet, A
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/Ionicons';
-import { getAuth } from '@react-native-firebase/auth';
-import { getFirestore, collection, query, where, orderBy, onSnapshot, doc, getDoc, } from '@react-native-firebase/firestore';
+import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
 import { calculateSynchroPercentage } from '../utils/Math';
 
 const DEFAULT_MALE_IMAGE = require('../assets/man.png');
@@ -22,15 +22,6 @@ export default function AllMatchesScreen({ navigation }: AllMatchesScreenProps) 
   const [matches, setMatches] = useState<MatchData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchKeyword, setSearchKeyword] = useState<string>('');
-
-  const calculateAge = (birthDate: any) => {
-    if (!birthDate) return '??';
-    const birth = birthDate.toDate ? birthDate.toDate() : new Date(birthDate);
-    const today = new Date();
-    let age = today.getFullYear() - birth.getFullYear();
-    if (today.getMonth() < birth.getMonth() || (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) age--;
-    return age;
-  };
 
   const formatTime = (timestamp: any) => {
     if (!timestamp) return '';
@@ -64,30 +55,22 @@ export default function AllMatchesScreen({ navigation }: AllMatchesScreenProps) 
   };
 
   useEffect(() => {
-    const auth = getAuth();
-    const user = auth.currentUser;
+    const user = auth().currentUser;
     if (!user) {
       setLoading(false);
       return;
     }
 
-    const db = getFirestore();
-    const matchesRef = collection(db, 'matches');
-    const matchesQuery = query(
-      matchesRef,
-      where('users', 'array-contains', user.uid),
-      orderBy('lastMessageAt', 'desc')
-    );
+    const matchesQuery = firestore().collection('matches').where('users', 'array-contains', 'user.uid').orderBy('lastMessageAt', 'desc');
 
-    const unsubscribe = onSnapshot(matchesQuery, async (snapshot) => {
+    const unsubscribe = matchesQuery.onSnapshot(async (snapshot) => {
       if (!snapshot || !snapshot.docs) {
         setLoading(false);
         return;
       }
 
       try {
-        const mySenseDataRef = doc(db, 'users', user.uid, 'senseDate', 'profile');
-        const mySenseDataSnap = await getDoc(mySenseDataRef);
+        const mySenseDataSnap = await firestore().collection('users').doc(user.uid).collection('senseData').doc('profile').get();
         const myVector = mySenseDataSnap.exists() ? mySenseDataSnap.data()?.senseVector : null;
 
         const promises = snapshot.docs.map(async (matchDoc: any) => {
@@ -95,16 +78,14 @@ export default function AllMatchesScreen({ navigation }: AllMatchesScreenProps) 
           const otherUserId = data.users?.find((uid: string) => uid !== user.uid);
           if (!otherUserId) return null;
 
-          const userDocRef = doc(db, 'users', otherUserId);
-          const userDocSnap = await getDoc(userDocRef);
-          const userData = userDocSnap.exists() ? userDocSnap.data() : null;
+          const otherUserSnap = data.userSnapshots ? data.userSnapshots[otherUserId] : null;
 
           let userImage = DEFAULT_MALE_IMAGE;
-          const photoStatus = userData?.mainPhotoStatus;
-          if (userData) {
-            if (userData.photoURL && userData.photoURL.startsWith('http') && photoStatus === 'approved') {
-              userImage = { uri: userData.photoURL };
-            } else if (userData.gender === '女性' || userData.gender === 'female' || userData.gender === 2) {
+          const photoStatus = otherUserSnap.mainPhotoStatus;
+          if (otherUserSnap) {
+            if (otherUserSnap.photoURL && otherUserSnap.photoURL.startsWith('http') && photoStatus === 'approved') {
+              userImage = { uri: otherUserSnap.photoURL };
+            } else if (otherUserSnap.gender === 'female') {
               userImage = DEFAULT_FEMALE_IMAGE;
             }
           }
@@ -122,33 +103,38 @@ export default function AllMatchesScreen({ navigation }: AllMatchesScreenProps) 
 
           const isNew = data.lastMessage === 'マッチングが成立しました！';
 
-          const otherSenseDataRef = doc(db, 'users', otherUserId, 'senseDate', 'profile');
-          const otherSenseDataSnap = await getDoc(otherSenseDataRef);
-          const otherVector = otherSenseDataSnap.exists() ? otherSenseDataSnap.data()?.senseVector : null;
-
           let calculatedMatchRate = 0;
-          if (myVector && otherVector) {
-            calculatedMatchRate = calculateSynchroPercentage(myVector, otherVector);
+          if (myVector) {
+            try {
+              const otherSenseDataSnap = await firestore().collection('users').doc(otherUserId).collection('senseData').doc('profile').get();
+              const otherVector = otherSenseDataSnap.exists() ? otherSenseDataSnap.data()?.senseVector : null;
+              if (otherVector) {
+                calculatedMatchRate = calculateSynchroPercentage(myVector, otherVector);
+              }
+            } catch (err) {
+              console.error("Match rate calculation error:", err);
+            }
           }
+
           return {
             id: matchDoc.id,
-            name: userData ? (userData.displayName || '名無しさん') : '退会済みユーザー',
+            name: otherUserSnap ? (otherUserSnap.displayName || '名無しさん') : '退会済みユーザー',
             img: userImage,
             createdAt: data.createdAt,
-            age: userData ? calculateAge(userData.birthDate) : '',
-            isOnline: userData ? checkIsonline(userData.lastSeen) : false,
+            age: otherUserSnap ? (otherUserSnap.age || '--') : '',
+            isOnline: false,
             otherUserId: otherUserId,
             isHidden: isHidden,
             isDeleted: isDeleted,
             isNew: isNew,
-            location: userData?.location,
-            occupation: userData?.occupation,
-            matchRate: calculatedMatchRate > 0 ? calculatedMatchRate : 0,
+            location: otherUserSnap?.location,
+            occupation: otherUserSnap?.occupation,
+            matchRate: calculatedMatchRate > 0 ? calculatedMatchRate : (otherUserSnap?.compatibility || 0),
           } as MatchData;
         });
 
         const results = await Promise.all(promises);
-        const validResults: MatchData[] = results.filter((item: any): item is MatchData => item !== null);
+        const validResults: MatchData[] = results.filter((item: any): item is MatchData => item !== null && !item.isHidden && !item.isDeleted);
 
         validResults.sort((a, b) => {
           const dateA = a.createdAt ? (a.createdAt.toDate ?
@@ -291,54 +277,21 @@ export default function AllMatchesScreen({ navigation }: AllMatchesScreenProps) 
 
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F7FA',
-  },
+  container: { flex: 1, backgroundColor: '#F5F7FA', },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F5F7FA',
-    zIndex: 10,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 12,
+    backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#F5F7FA', zIndex: 10,
   },
-  backButton: {
-    padding: 4,
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#333',
-  },
+  backButton: { padding: 4, },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: '#333', },
   searchContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F5F7FA',
+    paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#F5F7FA',
   },
   searchBar: {
-    backgroundColor: '#F5F7FA',
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    height: 44,
+    backgroundColor: '#F5F7FA', borderRadius: 12, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, height: 44,
   },
-  searchInput: {
-    flex: 1,
-    marginLeft: 8,
-    color: '#333',
-    fontSize: 15,
-  },
-  listContainer: {
-    padding: 16,
-    paddingBottom: 40,
-  },
+  searchInput: { flex: 1, marginLeft: 8, color: '#333', fontSize: 15, },
+  listContainer: { padding: 16, paddingBottom: 40, },
   cardContainer: {
     flexDirection: 'row', backgroundColor: '#FFFFFF', borderRadius: 20, marginBottom: 12, borderWidth: 1, borderColor: '#F1F5F9',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowRadius: 8, elevation: 2, position: 'relative', overflow: 'hidden',
@@ -374,28 +327,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05, shadowRadius: 4, elevation: 1,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 80,
-  },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', },
+  emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingTop: 80, },
   emptyIconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#F8FAFC',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
+    width: 64, height: 64, borderRadius: 32, backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center', marginBottom: 16,
   },
-  emptyText: {
-    fontSize: 15,
-    color: '#94A3B8',
-    fontWeight: '500',
-  },
+  emptyText: { fontSize: 15, color: '#94A3B8', fontWeight: '500', },
 });
