@@ -32,7 +32,7 @@ interface SubPhotoData {
 }
 
 interface UserProfile {
-  id: string; displayName?: string; birthDate?: any; gender?: string; photoURL?: string; mainPhotoStatus?: string; isOnline?: boolean;
+  id: string; displayName?: string; birthDate?: any; gender?: string; photoURL?: string; photoStoragePath?: string; mainPhotoStatus?: string; isOnline?: boolean;
   location?: string; matchRate?: number; interests?: string[]; bio?: string; question?: string; birthPlace?: string; height?: string;
   bodyType?: string; bloodType?: string; sibling?: string; personality?: string; occupation?: string; workTime?: string; income?: string;
   education?: string; lifeStyle?: string; cookingFrequency?: string; holiday?: string; alcohol?: string; tobacco?: string;
@@ -274,7 +274,6 @@ export default function UserProfileScreen({ navigation, route }: any) {
         if (myDoc.exists()) {
           const myData = myDoc.data();
           if (myData?.privacySettings?.footprints === false) {
-            console.log('足あと設定がOFFのため記録をスキップします');
             return;
           }
         }
@@ -598,6 +597,15 @@ export default function UserProfileScreen({ navigation, route }: any) {
           targetUserId: user.id,
           answer: answer,
           createdAt: firestore.FieldValue.serverTimestamp(),
+          targetUserSnapshot: {
+            displayName: user.displayName || '名無し',
+            photoURL: user.photoURL || '',
+            photoStoragePath: user.photoStoragePath || '',
+            age: calculateAge(user.birthDate),
+            gender: user.gender || '',
+            location: user.location || '',
+            mainPhotoStatus: user.mainPhotoStatus || 'pending'
+          }
         });
       }
 

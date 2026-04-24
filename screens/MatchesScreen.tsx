@@ -1,14 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View, Text, FlatList, Image, TouchableOpacity, TextInput, StyleSheet, ActivityIndicator, Alert, Modal, RefreshControl
-} from 'react-native';
+import { View, Text, FlatList, Image, TouchableOpacity, TextInput, StyleSheet, ActivityIndicator, Alert, Modal, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { getAuth } from '@react-native-firebase/auth';
-import {
-  getFirestore, collection, query, where, orderBy, onSnapshot, doc, getDoc, updateDoc, serverTimestamp
-} from '@react-native-firebase/firestore';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import LinearGradient from 'react-native-linear-gradient';
+import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
 
 const DEFAULT_MALE_IMAGE = require('../assets/man.png');
 const DEFAULT_FEMALE_IMAGE = require('../assets/woman.png');
@@ -32,17 +28,6 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
   const [selectedMatch, setSelectedMatch] = useState<MatchData | null>(null);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [refreshTick, setRefreshTick] = useState<number>(0);
-  const auth = getAuth();
-  const db = getFirestore();
-
-  const calculateAge = (birthDate: any) => {
-    if (!birthDate) return '??';
-    const birth = birthDate.toDate ? birthDate.toDate() : new Date(birthDate);
-    const today = new Date();
-    let age = today.getFullYear() - birth.getFullYear();
-    if (today.getMonth() < birth.getMonth() || (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) age--;
-    return age;
-  };
 
   const formatTime = (timestamp: any) => {
     if (!timestamp) return '';
@@ -76,20 +61,15 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
   };
 
   useEffect(() => {
-    const user = auth.currentUser;
+    const user = auth().currentUser;
     if (!user) {
       setLoading(false);
       return
     }
 
-    const matchesRef = collection(db, 'matches');
-    const matchesQuery = query(
-      matchesRef,
-      where('users', 'array-contains', user.uid),
-      orderBy('lastMessageAt', 'desc')
-    );
+    const matchesQuery = firestore().collection('matches').where('users', 'array-contains', user.uid).orderBy('lastMessage', 'desc');
 
-    const unsubscribe = onSnapshot(matchesQuery, async (snapshot) => {
+    const unsubscribe = matchesQuery.onSnapshot(async (snapshot) => {
       if (!snapshot || !snapshot.docs) {
         setLoading(false);
         return;
@@ -163,13 +143,11 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
   const handleHideMatch = async () => {
     if (!selectedMatch) return;
     try {
-      const user = auth.currentUser;
+      const user = auth().currentUser;
       if (!user) return;
 
-      const matchDocRef = doc(db, 'matches', selectedMatch.id);
-
-      await updateDoc(matchDocRef, {
-        [`hiddenAt.${user.uid}`]: serverTimestamp()
+      await firestore().collection('matches').doc(selectedMatch.id).update({
+        [`hiddenAt.${user.uid}`]: firestore.FieldValue.serverTimestamp()
       });
 
       setHideConfirmVisible(false);
@@ -184,13 +162,11 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
     if (!selectedMatch) return;
 
     try {
-      const user = auth.currentUser;
+      const user = auth().currentUser;
       if (!user) return;
 
-      const matchDocRef = doc(db, 'matches', selectedMatch.id);
-
-      await updateDoc(matchDocRef, {
-        [`deletedAt.${user.uid}`]: serverTimestamp()
+      await firestore().collection('matches').doc(selectedMatch.id).update({
+        [`deletedAt.${user.uid}`]: firestore.FieldValue.serverTimestamp()
       });
 
       setDeleteConfirmVisible(false);

@@ -5,14 +5,11 @@ import {
   Platform, StatusBar, Animated
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-
-import { getAuth, } from '@react-native-firebase/auth';
-import {
-  getFirestore, collection, doc, getDoc, getDocs, onSnapshot, query, orderBy, limit,
-  addDoc, serverTimestamp, deleteDoc,
-} from '@react-native-firebase/firestore';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import LinearGradient from 'react-native-linear-gradient';
+import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
 import { calculateSynchroPercentage } from '../utils/Math';
 
 const { width } = Dimensions.get('window');
@@ -28,7 +25,7 @@ interface UserProfile {
 interface FootprintItem { id: string; userId: string; createdAt: any; tab: string; user: UserProfile; }
 
 interface FootprintCardProps {
-  item: FootprintItem; isLiked: boolean; onLike: (userId: string) => void; navigation: any; tab?: string;
+  item: FootprintItem; isLiked: boolean; onLike?: (userId: string) => void; navigation: any; tab?: string;
 }
 
 const formatTime = (timestamp: any) => {
@@ -181,12 +178,9 @@ export default function FootprintsScreen({ navigation }: { navigation: any }) {
   const [sentFootprints, setSentFootprints] = useState<FootprintItem[]>([]);
   const [loadingReceived, setLoadingReceived] = useState(true);
   const [loadingSent, setLoadingSent] = useState(true);
-
   const [todayCount, setTodayCount] = useState(0);
   const [sentLikes, setSentLikes] = useState<Set<string>>(new Set());
-
   const [tick, setTick] = useState(0);
-
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
 
@@ -202,9 +196,7 @@ export default function FootprintsScreen({ navigation }: { navigation: any }) {
   );
 
   useEffect(() => {
-    const auth = getAuth();
-    const db = getFirestore();
-    const user = auth.currentUser;
+    const user = auth().currentUser;
 
     if (!user) {
       setLoadingReceived(false);
@@ -212,193 +204,192 @@ export default function FootprintsScreen({ navigation }: { navigation: any }) {
       return;
     }
 
-    setLoadingReceived(true);
-    setLoadingSent(true);
+    let unsubReceived: (() => void) | undefined;
+    let unsubSent: (() => void) | undefined;
 
-    const fetchLikes = async () => {
+    const setupFootprintsListener = async () => {
+      setLoadingReceived(true);
+      setLoadingSent(true);
+
+      const fetchLikes = async () => {
+        try {
+          const sentLikesRef = firestore().collection('users').doc(user.uid).collection('sentLikes');
+          const likesSnapshot = await sentLikesRef.get();
+          const likedIds = new Set<string>(likesSnapshot.docs.map((doc: any) => doc.data().targetUserId || doc.id));
+          setSentLikes(likedIds);
+        } catch (e) {
+          console.error("Error fetching likes:", e);
+        }
+      };
+      fetchLikes();
+
+      let myVector: any = null;
       try {
-        const sentLikesRef = collection(db, 'users', user.uid, 'sentLikes');
-        const likesSnapshot = await getDocs(sentLikesRef);
-        const likedIds = new Set<string>(likesSnapshot.docs.map((doc: any) => doc.data().targetUserId || doc.id));
-        setSentLikes(likedIds);
-      } catch (e) {
-        console.error("Error fetching likes:", e);
-      }
-    };
-    fetchLikes();
-
-    const receivedRef = collection(db, 'users', user.uid, 'footprints_received');
-    const receivedQuery = query(receivedRef, orderBy('createdAt', 'desc'), limit(50));
-
-    const unsubscribeReceived = onSnapshot(receivedQuery, async (snapshot) => {
-      if (!snapshot) {
-        setLoadingReceived(false);
-        return;
-      }
-      try {
-        const mySenseDataRef = doc(db, 'users', user.uid, 'senseData', 'profile');
-        const mySenseDataSnap = await getDoc(mySenseDataRef);
-        const myVector = mySenseDataSnap.exists() ? mySenseDataSnap.data()?.senseVector : null;
-
-        const items = await Promise.all(snapshot.docs.map(async (docSnap: any) => {
-          const data = docSnap.data();
-          const timestamp = data.createdAt;
-
-          if (isOlderThan7Days(timestamp)) {
-            try {
-              await deleteDoc(doc(db, 'users', user.uid, 'footprints_received', docSnap.id));
-            } catch (err) {
-              console.error("古い足跡あとの削除に失敗しました(received):", err);
-            }
-            return null;
-          }
-
-          const targetUserId = data.visitorId || docSnap.id;
-          if (targetUserId === user.uid) return null;
-
-          const userDocRef = doc(db, 'users', targetUserId);
-          const userDoc = await getDoc(userDocRef);
-          if (!userDoc.exists()) return null;
-
-          const userData = userDoc.data();
-
-          const otherSenseDataRef = doc(db, 'users', targetUserId, 'senseData', 'profile');
-          const otherSenseDataSnap = await getDoc(otherSenseDataRef);
-          const otherVector = otherSenseDataSnap.exists() ? otherSenseDataSnap.data()?.senseVector : null;
-
-          let calculatedMatchRate = 0;
-          if (myVector && otherVector) {
-            calculatedMatchRate = calculateSynchroPercentage(myVector, otherVector);
-          }
-
-          return {
-            id: docSnap.id,
-            userId: targetUserId,
-            createdAt: timestamp,
-            tab: 'received',
-            user: {
-              ...userData,
-              matchRate: calculatedMatchRate > 0 ? calculatedMatchRate : 0,
-              id: targetUserId
-            } as UserProfile,
-          } as FootprintItem;
-        }));
-
-        const validItems = items.filter((i: any) => i !== null) as FootprintItem[];
-        setReceivedFootprints(validItems);
-        const count = validItems.filter(i => isNewFootprint(i.createdAt)).length;
-        setTodayCount(count);
+        const mySenseDataSnap = await firestore().collection('users').doc(user.uid).collection('senseData').doc('profile').get();
+        if (mySenseDataSnap.exists()) {
+          myVector = mySenseDataSnap.data()?.senseVector;
+        }
       } catch (error) {
-        console.error("Error processing received footprints:", error);
-      } finally {
-        setLoadingReceived(false);
+        console.error("Error fetching my sense vector:", error);
       }
-    }, (error) => {
-      console.error("Received footprints error:", error);
-      setLoadingReceived(false);
-    });
 
-    // 【変更点】: 自分からの足あと監視 (モジュラーAPI & 個別監視)
-    const sentRef = collection(db, 'users', user.uid, 'footprints_sent');
-    const sentQuery = query(sentRef, orderBy('createdAt', 'desc'), limit(50));
+      const receivedRef = firestore().collection('users').doc(user.uid).collection('footprints_received');
+      unsubReceived = receivedRef.orderBy('createdAt', 'desc').limit(50).onSnapshot(async (snapshot) => {
+        if (!snapshot) {
+          setLoadingReceived(false);
+          return;
+        }
+        try {
+          const promises = await Promise.all(snapshot.docs.map(async (docSnap: any) => {
+            const data = docSnap.data();
+            const timestamp = data.createdAt;
 
-    const unsubscribeSent = onSnapshot(sentQuery, async (snapshot) => {
-      if (!snapshot) {
-        setLoadingSent(false);
-        return;
-      }
-      try {
-        const mySenseDataRef = doc(db, 'users', user.uid, 'senseData', 'profile');
-        const mySenseDataSnap = await getDoc(mySenseDataRef);
-        const myVector = mySenseDataSnap.exists() ? mySenseDataSnap.data()?.senseVector : null;
-
-        const items = await Promise.all(snapshot.docs.map(async (docSnap: any) => {
-          const data = docSnap.data();
-          const timestamp = data.createdAt;
-
-          if (isOlderThan7Days(timestamp)) {
-            try {
-              await deleteDoc(doc(db, 'users', user.uid, 'footprints_sent', docSnap.id));
-            } catch (err) {
-              console.error("古い足あとの削除に失敗しました(sent):", err);
+            if (isOlderThan7Days(timestamp)) {
+              try {
+                await firestore().collection('users').doc(user.uid).collection('footprints_received').doc(docSnap.id).delete();
+              } catch (err) {
+                console.error("古い足跡あとの削除に失敗しました(received):", err);
+              }
+              return null;
             }
-            return null;
-          }
 
-          const targetUserId = data.visitedId || docSnap.id;
-          if (targetUserId === user.uid) return null;
+            const targetUserId = data.visitorId || docSnap.id;
+            if (targetUserId === user.uid) return null;
 
-          const userDocRef = doc(db, 'users', targetUserId);
-          const userDoc = await getDoc(userDocRef);
-          if (!userDoc.exists()) return null;
+            const snapData = data.visitorSnapshot;
+            if (!snapData) return null;
 
-          const userData = userDoc.data();
+            let calculatedMatchRate = 0;
+            if (myVector) {
+              try {
+                const otherSenseDataSnap = await firestore().collection('users').doc(targetUserId).collection('senseData').doc('profile').get();
+                if (otherSenseDataSnap.exists()) {
+                  const otherVector = otherSenseDataSnap.data()?.senseVector;
+                  if (otherVector) {
+                    const rate = calculateSynchroPercentage(myVector, otherVector);
+                    if (rate > 0) calculatedMatchRate = rate;
+                  }
+                }
+              } catch (error) {
+                console.error("Error calculating match rate:", error);
+              }
+            }
 
-          const otherSenseDataRef = doc(db, 'users', targetUserId, 'senseData', 'profile');
-          const otherSenseDataSnap = await getDoc(otherSenseDataRef);
-          const otherVector = otherSenseDataSnap.exists() ? otherSenseDataSnap.data()?.senseVector : null;
+            return {
+              id: docSnap.id,
+              userId: targetUserId,
+              createdAt: timestamp,
+              tab: 'received',
+              user: {
+                id: targetUserId,
+                displayName: snapData.displayName,
+                photoURL: snapData.photoURL,
+                gender: snapData.gender,
+                birthDate: snapData.birthDate,
+                location: snapData.location,
+                occupation: snapData.occupation,
+                matchRate: calculatedMatchRate,
+                mainPhotoStatus: snapData.mainPhotoStatus
+              } as UserProfile,
+            } as FootprintItem;
+          }));
 
-          let calculatedMatchRate = 0;
-          if (myVector && otherVector) {
-            calculatedMatchRate = calculateSynchroPercentage(myVector, otherVector);
-          }
-
-          return {
-            id: docSnap.id,
-            userId: targetUserId,
-            createdAt: timestamp,
-            tab: 'sent',
-            user: {
-              ...userData,
-              matchRate: calculatedMatchRate > 0 ? calculatedMatchRate : 0,
-              id: targetUserId
-            } as UserProfile,
-          } as FootprintItem;
-        }));
-
-        const validItems = items.filter((i: any) => i !== null) as FootprintItem[];
-        setSentFootprints(validItems);
-      } catch (error) {
-        console.error("Error processing sent footprints:", error);
-      } finally {
-        setLoadingSent(false);
-      }
-    }, (error) => {
-      console.error("Sent footprints error:", error);
-      setLoadingSent(false);
-    });
-
-    return () => {
-      unsubscribeReceived();
-      unsubscribeSent();
-    };
-  }, []);
-
-  const handleLike = async (targetUserId: string) => {
-    try {
-      const auth = getAuth();
-      const db = getFirestore();
-      const currentUser = auth.currentUser;
-      if (!currentUser) return;
-
-      const queueRef = collection(db, 'likes_queue');
-      await addDoc(queueRef, {
-        fromUserId: currentUser.uid,
-        toUserId: targetUserId,
-        answer: null,
-        createdAt: serverTimestamp(),
-        status: 'pending'
+          const items = await Promise.all(promises);
+          const validItems = items.filter((i: any) => i !== null) as FootprintItem[];
+          setReceivedFootprints(validItems);
+          const count = validItems.filter(i => isNewFootprint(i.createdAt)).length;
+          setTodayCount(count);
+        } catch (error) {
+          console.error("Error processing received footprints:", error);
+        } finally {
+          setLoadingReceived(false);
+        }
+      }, (error) => {
+        console.error("Received footprints error:", error);
+        setLoadingReceived(false);
       });
 
-      const newSet = new Set(sentLikes);
-      newSet.add(targetUserId);
-      setSentLikes(newSet);
+      const sentRef = firestore().collection('users').doc(user.uid).collection('footprints_sent');
+      unsubSent = sentRef.orderBy('createdAt', 'desc').limit(50).onSnapshot(async (snapshot) => {
+        if (!snapshot) {
+          setLoadingSent(false);
+          return;
+        }
+        try {
+          const promises = snapshot.docs.map(async (docSnap: any) => {
+            const data = docSnap.data();
+            const timestamp = data.createdAt;
 
-      Alert.alert("送信完了", "いいねを送りました！");
-    } catch (error) {
-      Alert.alert("エラー", "送信に失敗しました");
-    }
-  };
+            if (isOlderThan7Days(timestamp)) {
+              try {
+                await firestore().collection('users').doc(user.uid).collection('footprints_sent').doc(docSnap.id).delete();
+              } catch (err) {
+                console.error("古い足あとの削除に失敗しました(sent):", err);
+              }
+              return null;
+            }
+
+            const targetUserId = data.visitedId || docSnap.id;
+            if (targetUserId === user.uid) return null;
+
+            const snapData = data.visitedSnapshot;
+            if (!snapData) return null;
+
+            let calculatedMatchRate = 0;
+            if (myVector) {
+              try {
+                const otherSenseDataSnap = await firestore().collection('users').doc(targetUserId).collection('senseData').doc('profile').get();
+                if (otherSenseDataSnap.exists()) {
+                  const otherVector = otherSenseDataSnap.data()?.senseVector;
+                  if (otherVector) {
+                    const rate = calculateSynchroPercentage(myVector, otherVector);
+                    if (rate > 0) calculatedMatchRate = rate;
+                  }
+                }
+              } catch (error) {
+                console.error("Error calculating match rate:", error);
+              }
+            }
+            return {
+              id: docSnap.id,
+              userId: targetUserId,
+              createdAt: timestamp,
+              tab: 'sent',
+              user: {
+                id: targetUserId,
+                displayName: snapData.displayName,
+                photoURL: snapData.photoURL,
+                gender: snapData.gender,
+                birthDate: snapData.birthDate,
+                location: snapData.location,
+                occupation: snapData.occupation,
+                matchRate: calculatedMatchRate,
+                mainPhotoStatus: snapData.mainPhotoStatus
+              } as UserProfile,
+            } as FootprintItem;
+          });
+
+          const items = await Promise.all(promises);
+          const validItems = items.filter((i: any) => i !== null) as FootprintItem[];
+          setSentFootprints(validItems);
+        } catch (error) {
+          console.error("Error processing sent footprints:", error);
+        } finally {
+          setLoadingSent(false);
+        }
+      }, (error) => {
+        console.error("Sent footprints error:", error);
+        setLoadingSent(false);
+      });
+    };
+
+    setupFootprintsListener();
+
+    return () => {
+      if (unsubReceived) unsubReceived();
+      if (unsubSent) unsubSent();
+    };
+  }, []);
 
   const handleTabPress = (tabName: 'received' | 'sent', index: number) => {
     setActiveTab(tabName);
@@ -509,7 +500,6 @@ export default function FootprintsScreen({ navigation }: { navigation: any }) {
                             key={item.id}
                             item={item}
                             isLiked={sentLikes.has(item.user.id)}
-                            onLike={handleLike}
                             navigation={navigation}
                           />
                         );
@@ -565,7 +555,6 @@ export default function FootprintsScreen({ navigation }: { navigation: any }) {
                         key={item.id}
                         item={item}
                         isLiked={sentLikes.has(item.user.id)}
-                        onLike={handleLike}
                         navigation={navigation}
                       />
                     ))}

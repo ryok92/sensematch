@@ -4,14 +4,12 @@ import {
   ScrollView, Animated, Modal, TextInput, Keyboard, KeyboardAvoidingView, Platform, TouchableWithoutFeedback
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import * as NavigationBar from 'expo-navigation-bar';
-import { getAuth } from '@react-native-firebase/auth';
-import {
-  getFirestore, collection, doc, query, orderBy, limit, onSnapshot, getDoc,
-  getDocs, where, Timestamp, addDoc, serverTimestamp,
-} from '@react-native-firebase/firestore';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import LinearGradient from 'react-native-linear-gradient';
+import auth from '@react-native-firebase/auth';
+import firestore, { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
 import MatchingScreen from './MatchingScreen';
 import { calculateSynchroPercentage } from '../utils/Math';
 
@@ -21,15 +19,12 @@ const CARD_WIDTH = (width - 32 - 12) / 2;
 const DEFAULT_MALE_IMAGE = require('../assets/man.png');
 const DEFAULT_FEMALE_IMAGE = require('../assets/woman.png');
 
-const auth = getAuth();
-const db = getFirestore();
-
 type TabType = 'received' | 'sent';
 
 interface UserLike {
   id: string; likeDocId: string; age: number | string; photoURL: string | number; gender?: string; displayName?: string;
-  location?: string; receivedAt: Timestamp | Date; questionAnswer?: string; isNew: boolean; compatibility: number;
-  isBlur: boolean; question?: string; answer?: string; mainPhotoStatus?: string;
+  location?: string; receivedAt: FirebaseFirestoreTypes.Timestamp | Date | any; questionAnswer?: string; isNew: boolean; compatibility: number;
+  isBlur: boolean; question?: string; answer?: string; mainPhotoStatus?: string; isMatched?: boolean;
 }
 
 export default function ReceivedLikesScreen({ navigation }: any) {
@@ -74,22 +69,6 @@ export default function ReceivedLikesScreen({ navigation }: any) {
     return diffHours >= 72;
   };
 
-  const calculateAge = (birthDate: any): number | string => {
-    if (!birthDate) return '--';
-    const birth = birthDate.toDate ? birthDate.toDate() : new Date(birthDate);
-    const today = new Date();
-    let age = today.getFullYear() - birth.getFullYear();
-    if (today.getMonth() < birth.getMonth() || (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) age--;
-    return age;
-  };
-
-  useEffect(() => {
-    if (Platform.OS === 'android') {
-      NavigationBar.setBackgroundColorAsync('#ffffff00');
-      NavigationBar.setPositionAsync('absolute');
-    }
-  }, []);
-
   useEffect(() => {
     if (Platform.OS === 'android') {
       const keyboardDidShowListener = Keyboard.addListener(
@@ -113,7 +92,7 @@ export default function ReceivedLikesScreen({ navigation }: any) {
   }, []);
 
   useEffect(() => {
-    const currentUser = auth.currentUser;
+    const currentUser = auth().currentUser;
     if (!currentUser) {
       setLoadingReceived(false);
       setLoadingSent(false);
@@ -123,30 +102,27 @@ export default function ReceivedLikesScreen({ navigation }: any) {
     setLoadingReceived(true);
     setLoadingSent(true);
 
-    const myDocRef = doc(db, 'users', currentUser.uid);
-    const unsubscribeMe = onSnapshot(myDocRef, (docSnap) => {
+    const myDocRef = firestore().collection('users').doc(currentUser.uid);
+    const unsubscribeMe = myDocRef.onSnapshot((docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setMyQuestion(data?.question || null);
       }
     });
 
-    const receivedRef = collection(db, 'users', currentUser.uid, 'receivedLikes');
-    const qReceived = query(receivedRef, orderBy('createdAt', 'desc'), limit(20));
+    const receivedRef = firestore().collection('users').doc(currentUser.uid).collection('receivedLIkes');
+    const qReceived = receivedRef.orderBy('createdAt', 'desc').limit(20);
 
-    const unsubscribeReceived = onSnapshot(qReceived, async (snapshot) => {
+    const unsubscribeReceived = qReceived.onSnapshot(async (snapshot) => {
       let expiredFound = false;
-
-      // ★新規追加: 自分のsenseVectorを取得
       let myVector: any = null;
+
       try {
-        const mySenseDataRef = doc(db, 'users', currentUser.uid, 'senseData', 'profile');
-        const mySenseDataSnap = await getDoc(mySenseDataRef);
+        const mySenseDataSnap = await firestore().collection('users').doc(currentUser.uid).collection('senseData').doc('profile').get();
         myVector = mySenseDataSnap.exists() ? mySenseDataSnap.data()?.senseVector : null;
       } catch (error) {
         console.error("Error fetching my sense data:", error);
       }
-      // ★新規追加ここまで
 
       const promises = snapshot.docs.map(async (docSnap: any) => {
         const data = docSnap.data();
@@ -158,54 +134,41 @@ export default function ReceivedLikesScreen({ navigation }: any) {
           expiredFound = true;
         }
 
+        const snap = data.fromUserSnapshot;
+        if (!snap) return null;
+
+        let calculatedMatchRate = 0;
         try {
-          const userDocRef = doc(db, 'users', targetUserId);
-          const userDoc = await getDoc(userDocRef);
-
-          const sentLikesRef = collection(db, 'users', currentUser.uid, 'sentLikes');
-          const sentLikeQuery = query(sentLikesRef, where('targetUserId', '==', targetUserId));
-          const sentLikeSnapshot = await getDocs(sentLikeQuery);
-
-          const isMatched = !sentLikeSnapshot.empty;
-
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-
-            // ★新規追加: 相手のsenseVectorを取得してSENSE MATCH率を計算
-            let calculatedMatchRate = userData?.compatibility || Math.floor(Math.random() * 20) + 80;
-            try {
-              const otherSenseDataRef = doc(db, 'users', targetUserId, 'senseData', 'profile');
-              const otherSenseDataSnap = await getDoc(otherSenseDataRef);
-              const otherVector = otherSenseDataSnap.exists() ? otherSenseDataSnap.data()?.senseVector : null;
-              if (myVector && otherVector) {
-                const rate = calculateSynchroPercentage(myVector, otherVector);
-                if (rate > 0) calculatedMatchRate = rate;
-              }
-            } catch (error) {
-              console.error("Error calculating match rate for received like:", error);
-            }
-            // ★新規追加ここまで
-
-            return {
-              id: targetUserId,
-              likeDocId: docSnap.id,
-              age: calculateAge(userData?.birthDate),
-              ...userData,
-              receivedAt: data.createdAt,
-              questionAnswer: data.questionAnswer || data.answer,
-              isNew: !data.isRead,
-              compatibility: calculatedMatchRate, // ★修正箇所: 計算された値をセット
-              isMatched: isMatched,
-            } as UserLike;
+          const otherSenseDataSnap = await firestore().collection('users').doc(targetUserId).collection('senseData').doc('profile').get();
+          const otherVector = otherSenseDataSnap.exists() ? otherSenseDataSnap.data()?.senseVector : null;
+          if (myVector && otherVector) {
+            const rate = calculateSynchroPercentage(myVector, otherVector);
+            if (rate > 0) calculatedMatchRate = rate;
           }
         } catch (error) {
-          console.error(`Error fetching user ${targetUserId}:`, error);
+          console.error("Error calculating match rate:", error);
         }
-        return null;
+
+        return {
+          id: targetUserId,
+          likeDocId: docSnap.id,
+          age: snap.age || '--',
+          photoURL: snap.photoURL || '--',
+          gender: snap.gender,
+          displayName: snap.displayName || '名無し',
+          location: snap.location,
+          mainPhotoStatus: snap.mainPhotoStatus,
+          receivedAt: data.createdAt,
+          questionAnswer: data.questionAnswer || data.answer,
+          isNew: !data.isRead,
+          compatibility: calculatedMatchRate,
+          question: data.question || null,
+          isMatched: false,
+          isBlur: false,
+        } as UserLike;
       });
 
       const results = await Promise.all(promises);
-
       const validUsers = results.filter((item: any): item is UserLike => item !== null && !item.isMatched);
 
       setHasExpiredLikes(expiredFound);
@@ -218,21 +181,17 @@ export default function ReceivedLikesScreen({ navigation }: any) {
       setLoadingReceived(false);
     });
 
-    const sentRef = collection(db, 'users', currentUser.uid, 'sentLikes');
-    const qSent = query(sentRef, orderBy('createdAt', 'desc'), limit(30));
+    const sentRef = firestore().collection('users').doc(currentUser.uid).collection('sentLikes');
+    const qSent = sentRef.orderBy('createdAt', 'desc').limit(30);
 
-    const unsubscribeSent = onSnapshot(qSent, async (snapshot) => {
-
-      // ★新規追加: 自分のsenseVectorを取得
-      let myVector: any = null;
+    const unsubscribeSent = qSent.onSnapshot(async (snapshot) => {
+      let myVector: any = null
       try {
-        const mySenseDataRef = doc(db, 'users', currentUser.uid, 'senseData', 'profile');
-        const mySenseDataSnap = await getDoc(mySenseDataRef);
+        const mySenseDataSnap = await firestore().collection('users').doc(currentUser.uid).collection('senseData').doc('profile').get();
         myVector = mySenseDataSnap.exists() ? mySenseDataSnap.data()?.senseVector : null;
       } catch (error) {
         console.error("Error fetching my sense data:", error);
       }
-      // ★新規追加ここまで
 
       const promises = snapshot.docs.map(async (docSnap: any) => {
         const data = docSnap.data();
@@ -240,52 +199,37 @@ export default function ReceivedLikesScreen({ navigation }: any) {
 
         if (!targetUserId) return null;
 
+        const snap = data.targetUserSnapshot;
+        if (!snap) return null;
+
+        let calculatedMatchRate = 0;
         try {
-          const userDocRef = doc(db, 'users', targetUserId,);
-          const userDoc = await getDoc(userDocRef);
-
-          const receivedLikesRef = collection(db, 'users', currentUser.uid, 'receivedLikes');
-          const receivedLikeQuery = query(receivedLikesRef, where('fromUserId', '==', targetUserId));
-          const receivedLikeSnapshot = await getDocs(receivedLikeQuery);
-
-          const isMatched = !receivedLikeSnapshot.empty;
-
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-
-            // ★新規追加: 相手のsenseVectorを取得してSENSE MATCH率を計算
-            let calculatedMatchRate = 0;
-            try {
-              const otherSenseDataRef = doc(db, 'users', targetUserId, 'senseData', 'profile');
-              const otherSenseDataSnap = await getDoc(otherSenseDataRef);
-              const otherVector = otherSenseDataSnap.exists() ? otherSenseDataSnap.data()?.senseVector : null;
-              if (myVector && otherVector) {
-                const rate = calculateSynchroPercentage(myVector, otherVector);
-                if (rate > 0) calculatedMatchRate = rate;
-              }
-            } catch (error) {
-              console.error("Error calculating match rate for sent like:", error);
-            }
-            // ★新規追加ここまで
-
-            return {
-              id: targetUserId,
-              likeDocId: docSnap.id,
-              age: calculateAge(userData?.birthDate),
-              ...userData,
-              receivedAt: data.createdAt,
-              questionAnswer: data.questionAnswer || data.answer,
-              isNew: false,
-              compatibility: calculatedMatchRate, // ★修正箇所: 計算された値をセット
-              isMatched: isMatched,
-            } as UserLike;
+          const otherSenseDataSnap = await firestore().collection('users').doc(targetUserId).collection('senseData').doc('profile').get();
+          const otherVector = otherSenseDataSnap.exists() ? otherSenseDataSnap.data()?.senseVector : null;
+          if (myVector && otherVector) {
+            const rate = calculateSynchroPercentage(myVector, otherVector);
+            if (rate > 0) calculatedMatchRate = rate;
           }
         } catch (error) {
-          console.error(`Error fetching user ${targetUserId}:`, error);
+          console.error("Error calculating match rate:", error);
         }
-        return null;
+        return {
+          id: targetUserId,
+          likeDocId: docSnap.id,
+          age: snap.age || '--',
+          photoURL: snap.photoURL || '',
+          gender: snap.gender,
+          displayName: snap.displayName || '名無し',
+          location: snap.location,
+          mainPhotoStatus: snap.mainPhotoStatus,
+          receivedAt: data.createdAt,
+          questionAnswer: data.questionAnswer || data.answer,
+          isNew: false,
+          compatibility: calculatedMatchRate,
+          isMatched: false,
+          isBlur: false,
+        } as UserLike;
       });
-
       const results = await Promise.all(promises);
       const validUsers = results.filter((item: any): item is UserLike => item !== null && !item.isMatched);
 
@@ -340,7 +284,7 @@ export default function ReceivedLikesScreen({ navigation }: any) {
   };
 
   const ensureAuthenticated = async () => {
-    const currentUser = auth.currentUser;
+    const currentUser = auth().currentUser;
     if (!currentUser) return null;
     try {
       await currentUser.getIdToken(true);
@@ -353,8 +297,7 @@ export default function ReceivedLikesScreen({ navigation }: any) {
   const sendLikeToCloud = async (item: UserLike, answer: string | null = null) => {
     setQuestionModalVisible(false);
 
-    const auth = getAuth();
-    let currentUser = auth.currentUser;
+    let currentUser = auth().currentUser;
     if (!currentUser) {
       currentUser = await ensureAuthenticated();
     }
@@ -366,33 +309,20 @@ export default function ReceivedLikesScreen({ navigation }: any) {
 
     try {
       setNewMatchId(null);
-      const matchesRef = collection(db, 'matches');
-      const qMatch = query(matchesRef, where('users', 'array-contains', currentUser.uid));
-      const unsubscribe = onSnapshot(qMatch, (snapshot) => {
-        for (const docSnap of snapshot.docs) {
-          const data = docSnap.data();
-          if (data.users && Array.isArray(data.users) && data.users.includes(item.id)) {
-            setNewMatchId(docSnap.id);
-            unsubscribe();
-            break;
-          }
-        }
-      });
+      const matchId = [currentUser.uid, item.id].sort().join('_');
+      setNewMatchId(matchId);
 
-      const queueRef = collection(db, 'likes_queue');
-
-      await addDoc(queueRef, {
-        fromUserId: currentUser.uid,
-        toUserId: item.id,
-        answer: answer,
-        createdAt: serverTimestamp(),
-        status: 'pending',
+      await firestore().collection('matches').doc(matchId).set({
+        users: [currentUser.uid, item.id],
+        lastMessage: 'マッチングが成立しました！',
+        lastMessageAt: firestore.FieldValue.serverTimestamp(),
+        [`answers.${currentUser.uid}`]: answer
       });
 
       setAnswerText('');
 
-      setReceivedLikes(prevLikes =>
-        prevLikes.map(like =>
+      setReceivedLikes(prevLIkes =>
+        prevLIkes.map(like =>
           like.id === item.id ? { ...like, isMatched: true } : like
         )
       );
@@ -405,7 +335,7 @@ export default function ReceivedLikesScreen({ navigation }: any) {
   const handleLikePress = async (item: UserLike, isExpired: boolean) => {
     if (isExpired) return;
 
-    const currentUser = auth.currentUser;
+    const currentUser = auth().currentUser;
     if (!currentUser) return;
 
     setSelectedUserForLike(item);
@@ -874,7 +804,6 @@ export default function ReceivedLikesScreen({ navigation }: any) {
             </View>
 
             <ScrollView style={styles.answerModalScroll} showsVerticalScrollIndicator={false}>
-              {/* あなたの質問 */}
               <View style={styles.answerModalQuestionContainer}>
                 <Text style={styles.answerModalQuestionLabel}>あなたの質問</Text>
                 <Text style={styles.answerModalQuestionText}>
@@ -921,7 +850,6 @@ export default function ReceivedLikesScreen({ navigation }: any) {
           </View>
         </View>
       </Modal>
-      {/* ⏫ 修正箇所ここまで */}
 
       {selectedUserForLike && (
         <MatchingScreen
@@ -1046,7 +974,7 @@ const styles = StyleSheet.create({
   upgradeButton: { width: '100%', backgroundColor: '#4A90E2', paddingVertical: 14, borderRadius: 30, alignItems: 'center', },
   upgradeText: { color: '#FFF', fontWeight: '800', fontSize: 14, },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.6)', justifyContent: 'flex-end' },
-  modalBackdrop: { ...StyleSheet.absoluteFillObject },
+  modalBackdrop: { ...StyleSheet.absoluteFill },
   modalContent: {
     backgroundColor: '#FFF', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, paddingBottom: 40, minHeight: 480
   },

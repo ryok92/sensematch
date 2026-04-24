@@ -1,12 +1,12 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Dimensions, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import LinearGradient from 'react-native-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
-
-import { getAuth, signOut } from '@react-native-firebase/auth';
-import { getFirestore, doc, getDoc, setDoc, collection, getDocs, query, where, } from '@react-native-firebase/firestore';
+import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
 
 const { width } = Dimensions.get('window');
 
@@ -23,12 +23,12 @@ interface UserData {
 }
 
 interface StatCardProps {
-  label: string; value: number | string; iconName: keyof typeof Ionicons.glyphMap;
+  label: string; value: number | string; iconName: string;
   color: string; bgColor: string; onPress: () => void;
 }
 
 interface MenuItemProps {
-  title: string; iconName: keyof typeof Ionicons.glyphMap | string; iconColor: string; iconBg: string; hasBadge?: boolean;
+  title: string; iconName: string; iconColor: string; iconBg: string; hasBadge?: boolean;
   badgeText?: string; isLast?: boolean; onPress?: () => void; isDestructive?: boolean;
 }
 
@@ -118,50 +118,42 @@ export default function MyProfileScreen({ navigation }: { navigation: any }) {
   useFocusEffect(
     useCallback(() => {
       const fetchUserData = async () => {
-        const auth = getAuth();
-        const currentUser = auth.currentUser;
+        const currentUser = auth().currentUser;
         if (!currentUser) {
           setLoading(false)
           return;
         }
 
         try {
-          const db = getFirestore();
-
-          const userDocRef = doc(db, 'users', currentUser.uid);
-          const userDocSnap = await getDoc(userDocRef)
-
+          const userDocSnap = await firestore().collection('users').doc(currentUser.uid).get();
           if (userDocSnap.exists()) {
             const data = userDocSnap.data() as UserData;
             setUserData(data);
             setCompleteness(calculateCompleteness(data));
-
-            let currentAnswerCount = data.senseAnswerCount;
-            if (currentAnswerCount === undefined) {
-              currentAnswerCount = 0;
-              await setDoc(userDocRef, { senseAnswerCount: 0 }, { merge: true });
-            }
-            const calculatedSensePercent = Math.min(Math.round((currentAnswerCount / 100) * 100), 100);
-            setSenseCompleteness(calculatedSensePercent);
           }
 
-          const footprintRef = collection(db, 'users', currentUser.uid, 'footprints_received');
-          const footprintSnapshot = await getDocs(footprintRef);
-          setFootprintCount(footprintSnapshot.size);
+          const settingsDocSnap = await firestore().collection('users').doc(currentUser.uid).collection('private').doc('settings').get();
+          let currentAnswerCount = 0;
+          if (settingsDocSnap.exists() && settingsDocSnap.data()?.senseAnswerCount !== undefined) {
+            currentAnswerCount = settingsDocSnap.data()?.senseAnswerCount;
+          } else {
+            await firestore().collection('users').doc(currentUser.uid).collection('private').doc('settings').set({ senseAnswerCount: 0 }, { merge: true });
+          }
 
-          const matchesRef = collection(db, 'matches')
-          const matchesQuery = query(matchesRef, where('users', 'array-contains', currentUser.uid));
-          const matchesSnapshot = await getDocs(matchesQuery);
-          setMatchesCount(matchesSnapshot.size);
+          const calculatedSensePercent = Math.min(Math.round((currentAnswerCount / 100) * 100), 100);
+          setSenseCompleteness(calculatedSensePercent);
 
-          const receivedLikesRef = collection(db, 'users', currentUser.uid, 'receivedLikes');
-          const likesSnapshot = await getDocs(receivedLikesRef);
-          const LikesCount = likesSnapshot.size - matchesSnapshot.size;
-          setReceivedLikesCount(LikesCount);
+          const footprintSnapshot = await firestore().collection('users').doc(currentUser.uid).collection('footprints_received').get();
+          setFootprintCount(footprintSnapshot.docs.length);
 
-          const favoritesRef = collection(db, 'users', currentUser.uid, 'favorites');
-          const favoritesSnapshot = await getDocs(favoritesRef);
-          setFavoritesCount(favoritesSnapshot.size);
+          const matchesSnapshot = await firestore().collection('matches').where('users', 'array-contains', currentUser.uid).get();
+          setMatchesCount(matchesSnapshot.docs.length);
+
+          const likesSnapshot = await firestore().collection('users').doc(currentUser.uid).collection('receivedLikes').get();
+          setReceivedLikesCount(likesSnapshot.docs.length);
+
+          const favoritesSnapshot = await firestore().collection('users').doc(currentUser.uid).collection('favorites').get();
+          setFavoritesCount(favoritesSnapshot.docs.length);
 
         } catch (error) {
           console.error("Error fetching user data:", error);
@@ -188,8 +180,7 @@ export default function MyProfileScreen({ navigation }: { navigation: any }) {
           style: "destructive",
           onPress: async () => {
             try {
-              const auth = getAuth();
-              await signOut(auth);
+              await auth().signOut();
             } catch (e) {
               Alert.alert("エラー", "ログアウトに失敗しました")
             }
@@ -501,37 +492,56 @@ const styles = StyleSheet.create({
   tagsTitle: { fontSize: 14, fontWeight: 'bold', color: '#333' },
   tagsEditButton: { backgroundColor: '#EFF6FF', paddingVertical: 4, paddingHorizontal: 10, borderRadius: 20 },
   tagsEditButtonText: { fontSize: 11, color: '#2563EB', fontWeight: 'bold' },
-  tagsContainer: { backgroundColor: '#FFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#F1F5F9', shadowColor: "#64748B", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2, minHeight: 60 },
+  tagsContainer: {
+    backgroundColor: '#FFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#F1F5F9', shadowColor: "#64748B",
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2, minHeight: 60
+  },
   tagsFlex: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   profileTag: { backgroundColor: '#F8FAFC', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0' },
   profileTagText: { fontSize: 12, color: '#475569', fontWeight: '600' },
   emptyTagsContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 10 },
   emptyTagsText: { fontSize: 12, color: '#94A3B8', textAlign: 'center', lineHeight: 18 },
-
   statsContainer: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 24, marginBottom: 16 },
-  statCard: { width: '23%', backgroundColor: '#FFF', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 2, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#F5F7FA', shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-
+  statCard: {
+    width: '23%', backgroundColor: '#FFF', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 2, alignItems: 'center',
+    justifyContent: 'center', borderWidth: 1, borderColor: '#F5F7FA', shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05, shadowRadius: 4, elevation: 2
+  },
   statIconContainer: { width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
   statValue: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 2, textAlign: 'center' },
   statLabel: { fontSize: 9, color: '#999', textAlign: 'center' },
-
-  questionCardWrapper: { marginHorizontal: 24, marginBottom: 24, shadowColor: "#2563EB", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 3 },
+  questionCardWrapper: {
+    marginHorizontal: 24, marginBottom: 24, shadowColor: "#2563EB", shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08, shadowRadius: 10, elevation: 3
+  },
   questionCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#EFF6FF' },
   questionIconBox: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   questionContent: { flex: 1, justifyContent: 'center' },
   questionTitle: { fontSize: 14, fontWeight: 'bold', color: '#333', marginBottom: 2 },
   questionSubtitle: { fontSize: 11, color: '#64748B' },
-  questionEditBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: '#EFF6FF' },
+  questionEditBtn: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 12, borderWidth: 1, borderColor: '#EFF6FF'
+  },
   questionEditText: { fontSize: 10, fontWeight: 'bold', color: '#2563EB', marginRight: 2 },
-  noteCardWrapper: { marginHorizontal: 24, marginBottom: 24, shadowColor: "#E83E8C", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 3 },
+  noteCardWrapper: {
+    marginHorizontal: 24, marginBottom: 24, shadowColor: "#E83E8C", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08,
+    shadowRadius: 10, elevation: 3
+  },
   noteCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#FCE4EC' },
   noteIconBox: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FCE4EC', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   noteContent: { flex: 1, justifyContent: 'center' },
   noteTitle: { fontSize: 17, fontWeight: 'bold', color: '#333', marginBottom: 2 },
   noteSubtitle: { fontSize: 11, color: '#64748B', lineHeight: 16 },
-  noteEditBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: '#FCE4EC' },
+  noteEditBtn: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 12, borderWidth: 1, borderColor: '#FCE4EC'
+  },
   noteEditText: { fontSize: 10, fontWeight: 'bold', color: '#E83E8C', marginRight: 2 },
-  planBannerWrapper: { marginHorizontal: 24, marginBottom: 30, shadowColor: "#4A90E2", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 6 },
+  planBannerWrapper: {
+    marginHorizontal: 24, marginBottom: 30, shadowColor: "#4A90E2", shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2, shadowRadius: 12, elevation: 6
+  },
   planBanner: { borderRadius: 20, padding: 20, position: 'relative', overflow: 'hidden' },
   planContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', zIndex: 1 },
   planTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
@@ -542,7 +552,10 @@ const styles = StyleSheet.create({
   decoCircle1: { position: 'absolute', top: -20, right: -20, width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.1)' },
   decoCircle2: { position: 'absolute', bottom: -10, left: -10, width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255,255,255,0.1)' },
   menuGroup: { backgroundColor: '#FFF', marginHorizontal: 24, borderRadius: 20, borderWidth: 1, borderColor: '#F5F7FA', marginBottom: 24, overflow: 'hidden' },
-  menuItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#F5F7FA' },
+  menuItem: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: '#FFF',
+    borderBottomWidth: 1, borderBottomColor: '#F5F7FA'
+  },
   menuItemLast: { borderBottomWidth: 0 },
   menuLeft: { flexDirection: 'row', alignItems: 'center' },
   menuIconContainer: { width: 36, height: 36, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },

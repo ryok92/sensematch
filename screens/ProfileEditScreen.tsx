@@ -4,11 +4,12 @@ import {
   Modal, FlatList, Animated, PanResponder, Dimensions, Image, StatusBar, StyleProp, ViewStyle, ImageSourcePropType
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { getAuth } from '@react-native-firebase/auth';
-import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from '@react-native-firebase/firestore';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import LinearGradient from 'react-native-linear-gradient';
+import { BlurView } from '@react-native-community/blur';
+import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
 
 const { width, height } = Dimensions.get('window');
 const IMAGE_HEIGHT = height * 0.7;
@@ -392,7 +393,7 @@ const UserProfilePreviewModal: React.FC<UserProfilePreviewModalProps> = ({ visib
                 </View>
                 <View style={previewStyles.matchBadgeContainer}>
                   <View style={previewStyles.matchBadgeCircle}>
-                    <BlurView intensity={50} tint="dark" style={StyleSheet.absoluteFill} />
+                    <BlurView blurType="dark" blurAmount={5} style={StyleSheet.absoluteFill} />
                     <View style={previewStyles.content}>
                       <MaterialCommunityIcons name="creation" size={24} color="#FFD700" style={previewStyles.icon} />
                       <Text style={previewStyles.matchPercentage}>{user.compatibility}%</Text>
@@ -483,9 +484,6 @@ export default function ProfileEditScreen({ navigation }: any) {
   const [modalVisible, setModalVisible] = useState(false);
   const [currentModalConfig, setCurrentModalConfig] = useState<ModalConfig>({ title: '', options: [], fieldKey: '', multiSelect: false });
 
-  const auth = getAuth();
-  const db = getFirestore();
-
   const calculateCompleteness = (): number => {
     console.log(formData);
     const targetFields: (keyof UserFormData)[] = [
@@ -522,14 +520,13 @@ export default function ProfileEditScreen({ navigation }: any) {
 
   useEffect(() => {
     const fetchProfile = async () => {
-      const user = auth.currentUser;
+      const user = auth().currentUser;
       if (!user) {
         setLoading(false);
         return;
       }
       try {
-        const docRef = doc(db, 'users', user.uid);
-        const docSnap = await getDoc(docRef);
+        const docSnap = await firestore().collection('users').doc(user.uid).get();
         if (docSnap.exists()) {
           const data = docSnap.data();
           if (data?.gender) setMyGender(data.gender);
@@ -559,7 +556,7 @@ export default function ProfileEditScreen({ navigation }: any) {
   }, []);
 
   const handleSave = async () => {
-    const user = auth.currentUser;
+    const user = auth().currentUser;
     if (!user) {
       Alert.alert('エラー', 'ログインが必要です');
       return;
@@ -572,10 +569,9 @@ export default function ProfileEditScreen({ navigation }: any) {
 
     setUploading(true);
     try {
-      const docRef = doc(db, 'users', user.uid);
-      await setDoc(docRef, {
+      await firestore().collection('users').doc(user.uid).set({
         ...formData,
-        updatedAt: serverTimestamp(),
+        updatedAt: firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
 
       Alert.alert('完了', 'プロフィールを更新しました', [
@@ -884,7 +880,7 @@ const styles = StyleSheet.create({
   },
   saveButtonText: { color: '#FFF', fontSize: 16, fontWeight: 'bold', },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end', },
-  modalBackdrop: { ...StyleSheet.absoluteFillObject, },
+  modalBackdrop: { ...StyleSheet.absoluteFill, },
   modalSheet: {
     backgroundColor: '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '70%',
   },

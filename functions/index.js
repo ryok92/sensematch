@@ -105,22 +105,50 @@ exports.onUserUpdated = functions.firestore
         .where('users', 'array-contains', uid)
         .get();
 
-      if (matchesQuery.empty) return null;
-
       const batch = db.batch();
 
-      matchesQuery.docs.forEach((doc) => {
-        const matchRef = doc.ref;
+      if (!matchesQuery.empty) {
+        matchesQuery.docs.forEach((doc) => {
+          const matchRef = doc.ref;
+          const updateData = {};
+
+          if (isNameChanged) updateData[`userSnapshots.${uid}.displayName`] = after.displayName || 'No Name';
+          if (isPhotoChanged) updateData[`userSnapshots.${uid}.photoURL`] = after.photoURL || '';
+          if (isStatusChanged) updateData[`userSnapshots.${uid}.mainPhotoStatus`] = after.mainPhotoStatus || 'pending';
+          if (isStoragePathChanged) updateData[`userSnapshots.${uid}.photoStoragePath`] = after.photoStoragePath || '';
+
+          updateData['updatedAt'] = admin.firestore.FieldValue.serverTimestamp();
+
+          batch.update(matchRef, updateData);
+        });
+      }
+
+      const mySentLikesQuery = await db.collection('users').doc(uid).collection('sentLikes').get();
+      mySentLikesQuery.docs.forEach((doc) => {
+        const targetUserId = doc.id;
+        const targetReceivedLikeRef = db.collection('users').doc(targetUserId).collection('receivedLikes').doc(uid);
         const updateData = {};
+        if (isNameChanged) updateData[`fromUserSnapshot.displayName`] = after.displayName || 'No Name';
+        if (isPhotoChanged) updateData[`fromUserSnapshot.photoURL`] = after.photoURL || '';
+        if (isStatusChanged) updateData[`fromUserSnapshot.mainPhotoStatus`] = after.mainPhotoStatus || 'pending';
+        if (isStoragePathChanged) updateData[`fromUserSnapshot.photoStoragePath`] = after.photoStoragePath || '';
+        if (isLocationChanged) updateData[`fromUserSnapshot.location`] = after.location || ''; // ★ [MODIFIED]: locationを追加
 
-        if (isNameChanged) updateData[`userSnapshots.${uid}.displayName`] = after.displayName || 'No Name';
-        if (isPhotoChanged) updateData[`userSnapshots.${uid}.photoURL`] = after.photoURL || '';
-        if (isStatusChanged) updateData[`userSnapshots.${uid}.mainPhotoStatus`] = after.mainPhotoStatus || 'pending';
-        if (isStoragePathChanged) updateData[`userSnapshots.${uid}.photoStoragePath`] = after.photoStoragePath || '';
+        batch.update(targetReceivedLikeRef, updateData);
+      })
 
-        updateData['updatedAt'] = admin.firestore.FieldValue.serverTimestamp();
+      const myReceivedLikesQuery = await db.collection('users').doc(uid).collection('receivedLikes').get();
+      myReceivedLikesQuery.docs.forEach((doc) => {
+        const fromUserId = doc.id;
+        const fromSentLikeRef = db.collection('users').doc(fromUserId).collection('sentLikes').doc(uid);
+        const updateData = {};
+        if (isNameChanged) updateData[`targetUserSnapshot.displayName`] = after.displayName || 'No Name';
+        if (isPhotoChanged) updateData[`targetUserSnapshot.photoURL`] = after.photoURL || '';
+        if (isStatusChanged) updateData[`targetUserSnapshot.mainPhotoStatus`] = after.mainPhotoStatus || 'pending';
+        if (isStoragePathChanged) updateData[`targetUserSnapshot.photoStoragePath`] = after.photoStoragePath || '';
+        if (isLocationChanged) updateData[`targetUserSnapshot.location`] = after.location || ''; // ★ [MODIFIED]: locationを追加
 
-        batch.update(matchRef, updateData);
+        batch.update(fromSentLikeRef, updateData);
       });
 
       await batch.commit();
@@ -155,7 +183,8 @@ exports.onLikeSent = functions.firestore.document('users/{uid}/sentLikes/{target
         photoStoragePath: fromUserData.photoStoragePath || '',
         age: fromUserId.birthDate ? calculateAge(fromUserData.birthDate) : '--',
         gender: fromUserData.gender || '',
-        mainPhotoStatus: fromUserData.mainPhotoStatus || 'pending'
+        mainPhotoStatus: fromUserData.mainPhotoStatus || 'pending',
+        location: fromUserData.location || ''
       }
     });
 
