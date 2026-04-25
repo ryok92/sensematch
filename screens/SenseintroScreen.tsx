@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, StatusBar, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 const BRAIN_IMAGE = require('../assets/brain.webp');
 
@@ -10,7 +11,7 @@ const COLORS = {
   textSub: '#64748B', border: '#E2E8F0',
 };
 
-interface FeatureItemProps { icon: keyof typeof MaterialCommunityIcons.glyphMap; title: string; description: string; }
+interface FeatureItemProps { icon: string; title: string; description: string; }
 
 const FeatureItem: React.FC<FeatureItemProps> = ({ icon, title, description }) => (
   <View style={styles.featureItem}>
@@ -78,7 +79,7 @@ const styles = StyleSheet.create({
     position: 'absolute', top: 0, left: 0, right: 0, height: 320, borderBottomLeftRadius: 40, borderBottomRightRadius: 40,
     overflow: 'hidden', backgroundColor: COLORS.primary,
   },
-  headerBackgroundImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%', opacity: 0.8 },
+  headerBackgroundImage: { ...StyleSheet.absoluteFill, width: '100%', height: '100%', opacity: 0.8 },
   safeArea: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, zIndex: 10 },
   backButton: {

@@ -1,33 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ImageBackground,
-  TextInput,
-  Image,
-  KeyboardAvoidingView,
-  ActivityIndicator,
-  Platform,
-  Alert,
-  Dimensions,
-  Animated,
-  PanResponder,
-  Modal
+  View, Text, StyleSheet, TouchableOpacity, ImageBackground, TextInput, Image, KeyboardAvoidingView, ActivityIndicator,
+  Platform, Alert, Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-
-//import * as ImagePicker from 'expo-image-picker';
-
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityicons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import LinearGradient from 'react-native-linear-gradient';
 import ImagePicker from 'react-native-image-crop-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
-
-import { getAuth } from '@react-native-firebase/auth';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteField } from '@react-native-firebase/firestore';
-import { getStorage, ref, getDownloadURL } from '@react-native-firebase/storage';
+import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
+import storage from '@react-native-firebase/storage';
 
 const NOTE_BG_IMAGE = require('../assets/open_note.png');
 const { width } = Dimensions.get('window');
@@ -41,30 +24,26 @@ interface NotePage {
   comment: string;
 }
 
-export default function NoteSettingScreen({ navigation }: { navigation: any }) {
+export default function NoteSettingScreen({ navigation }: any) {
   const [pages, setPages] = useState<NotePage[]>([
     { id: 'page-1', photoUri: null, comment: '' },
     { id: 'page-2', photoUri: null, comment: '' },
   ]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-
   const currentPage = pages[currentIndex];
 
   useEffect(() => {
     const fetchNoteData = async () => {
       try {
-        const auth = getAuth();
-        const currentUser = auth.currentUser;
+        const currentUser = auth().currentUser;
 
         if (!currentUser) {
           setLoading(false);
           return;
         }
 
-        const db = getFirestore();
-        const userDocRef = doc(db, 'users', currentUser.uid);
-        const userDocSnap = await getDoc(userDocRef);
+        const userDocSnap = await firestore().collection('users').doc(currentUser.uid).get();
 
         if (userDocSnap.exists()) {
           const data = userDocSnap.data();
@@ -179,27 +158,22 @@ export default function NoteSettingScreen({ navigation }: { navigation: any }) {
   const saveToDatabase = async () => {
     try {
       setLoading(true);
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
+      const currentUser = auth().currentUser;
 
       if (!currentUser) {
         setLoading(false);
         return;
       }
 
-      const db = getFirestore();
-      const storage = getStorage();
-      const userDocRef = doc(db, 'users', currentUser.uid);
-
       const uploadPages = await Promise.all(
         pages.map(async (pages, index) => {
           let finalPhotoUri = pages.photoUri;
           if (finalPhotoUri && !finalPhotoUri.startsWith('http')) {
             try {
-              const fileRef = ref(storage, `users/${currentUser.uid}/notePages/${Date.now()}_${index}.jpg`);
+              const fileRef = storage().ref(`users/${currentUser.uid}/notePages/${Date.now()}_${index}.jpg`);
               await fileRef.putFile(finalPhotoUri);
 
-              finalPhotoUri = await getDownloadURL(fileRef);
+              finalPhotoUri = await fileRef.getDownloadURL();
             } catch (uploadError) {
               console.error(`Error uploading image for page ${index}:`, uploadError);
               throw new Error('画像のアップロードに失敗しました。');
@@ -213,7 +187,9 @@ export default function NoteSettingScreen({ navigation }: { navigation: any }) {
         })
       );
 
-      await setDoc(userDocRef, { notePages: uploadPages }, { merge: true });
+      await firestore().collection('users').doc(currentUser.uid).collection('private').doc('settings').set({
+        notePages: uploadPages
+      }, { merge: true });
 
       Alert.alert("保存完了", "Noteを更新しました。")
     } finally {
@@ -232,15 +208,11 @@ export default function NoteSettingScreen({ navigation }: { navigation: any }) {
           onPress: async () => {
             try {
               setLoading(true);
-              const auth = getAuth();
-              const currentUser = auth.currentUser;
+              const currentUser = auth().currentUser;
               if (!currentUser) return;
 
-              const db = getFirestore();
-              const userDocRef = doc(db, 'users', currentUser.uid);
-
-              await updateDoc(userDocRef, {
-                notePages: deleteField()
+              await firestore().collection('usres').doc(currentUser.uid).collection('private').doc('settings').update({
+                notePages: firestore.FieldValue.delete()
               });
 
               Alert.alert("削除完了", "Noteデータを削除しました。", [
@@ -361,8 +333,6 @@ export default function NoteSettingScreen({ navigation }: { navigation: any }) {
                 <Text style={[styles.navButtonText, currentIndex === 0 && styles.disabledText]}>前のページ</Text>
               </TouchableOpacity>
 
-
-
               <TouchableOpacity
                 style={[styles.navButton, currentIndex === pages.length - 1 && styles.disabledButton]}
                 onPress={handleNextPage}
@@ -403,8 +373,6 @@ export default function NoteSettingScreen({ navigation }: { navigation: any }) {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-
-
     </SafeAreaView>
   );
 }
@@ -415,67 +383,43 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
   backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
-
   mainContent: { flex: 1, padding: 16, justifyContent: 'flex-start' },
-
   introSection: { marginBottom: 16, alignItems: 'center' },
   introText: { fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 20 },
-
   paginationContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 16, gap: 8 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#E2E8F0' },
   activeDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#E83E8C' },
-
   noteContainer: { alignItems: 'center', marginBottom: 24, shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8 },
   noteBackground: { justifyContent: 'center', alignItems: 'center' },
   noteImageStyle: { borderRadius: 8, resizeMode: 'cover' },
-
   notePagesWrapper: { flex: 1, flexDirection: 'row', width: '100%', paddingVertical: '6%', paddingHorizontal: '4%', },
-
   leftPage: { flex: 1, padding: 8, justifyContent: 'center', marginLeft: 5 },
   photoUploadArea: { flex: 1, backgroundColor: 'rgba(255, 255, 255, 0.6)', borderRadius: 8, borderWidth: 1, borderColor: 'rgba(232, 62, 140, 0.3)', borderStyle: 'dashed', overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
-
   photoUploadAreaActive: { backgroundColor: 'transparent', borderWidth: 0 },
-
   uploadedPhoto: { width: '100%', height: '100%', resizeMode: 'cover' },
   photoPlaceholder: { alignItems: 'center', justifyContent: 'center', padding: 10 },
   photoPlaceholderText: { fontSize: 11, color: '#E83E8C', marginTop: 8, fontWeight: 'bold', textAlign: 'center' },
-
   centerBinding: { width: 20 },
-
   rightPage: { flex: 1, padding: 8, paddingTop: 12, paddingBottom: 4, marginRight: 1 },
-
   pageCloseButton: { position: 'absolute', top: 1, right: 8, zIndex: 10, backgroundColor: 'rgba(255, 255, 255,0.6)', borderRadius: 12 },
-
   commentInput: { flex: 1, fontSize: 13, color: '#333', lineHeight: 22, backgroundColor: 'transparent' },
   charCount: { fontSize: 10, color: '#94A3B8', textAlign: 'right', marginTop: 3, marginRight: 4 },
-
   controlsContainer: { backgroundColor: '#FFF', borderRadius: 16, padding: 13, borderWidth: 1, borderColor: '#F1F5F9' },
   navButtonsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   navButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, backgroundColor: '#F8FAFC', borderRadius: 8 },
   disabledButton: { backgroundColor: '#F1F5F9', opacity: 0.5 },
   navButtonText: { fontSize: 13, fontWeight: 'bold', color: '#475569', marginHorizontal: 4 },
   disabledText: { color: '#CBD5E1' },
-
   bottomDotContainer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   bottomDot: { width: 12, height: 12, borderRadius: 6, borderWidth: 1.5, borderColor: '#888', backgroundColor: 'transparent' },
   bottomActiveDot: { backgroundColor: '#333', borderColor: '#333' },
-
   editButtonsRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 16 },
   addPageButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF0F5', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20 },
   addPageButtonText: { fontSize: 12, fontWeight: 'bold', color: '#E83E8C' },
-
-  bottomBar: {
-    backgroundColor: '#FFF',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-  },
-
+  bottomBar: { backgroundColor: '#FFF', paddingHorizontal: 24, paddingVertical: 16, borderTopWidth: 1, borderTopColor: '#F1F5F9', },
   saveButtonWrapper: { shadowColor: "#E83E8C", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 4 },
   saveButton: { paddingVertical: 16, borderRadius: 30, alignItems: 'center', justifyContent: 'center' },
   saveButtonText: { color: '#FFF', fontSize: 16, fontWeight: 'bold', letterSpacing: 1 },
-
   deleteAllButton: { marginTop: 12, paddingVertical: 8, alignItems: 'center' },
   deleteAllButtonText: { color: '#94A3B8', fontSize: 12, fontWeight: 'bold' },
 });

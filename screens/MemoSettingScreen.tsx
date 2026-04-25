@@ -4,12 +4,9 @@ import {
   KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, Alert
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
-import { getAuth } from '@react-native-firebase/auth';
-import {
-  getFirestore, collection, getDocs, doc, getDoc, setDoc, serverTimestamp, query, orderBy
-} from '@react-native-firebase/firestore';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
 
 const DEFAULT_MALE_IMAGE = require('../assets/man.png');
 const DEFAULT_FEMALE_IMAGE = require('../assets/woman.png');
@@ -34,69 +31,81 @@ export default function MyMemoSettingScreen({ navigation }: any) {
   const [memoText, setMemoText] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [keyboardOffset, setKeyboardOffset] = useState<number>(0);
-  const auth = getAuth();
-  const db = getFirestore();
 
   useEffect(() => {
-      if (Platform.OS === 'android') {
-        const keyboardDidShowListener = Keyboard.addListener(
-          'keyboardDidShow',
-          (e) => {
-            setKeyboardOffset(e.endCoordinates.height);
-          }
-        );
-        const keyboardDidHideListener = Keyboard.addListener(
-          'keyboardDidHide',
-          () => {
-            setKeyboardOffset(0);
-          }
-        );
-        return () => {
-          keyboardDidShowListener.remove();
-          keyboardDidHideListener.remove();
-        };
-      }
-    }, []);
+    if (Platform.OS === 'android') {
+      const keyboardDidShowListener = Keyboard.addListener(
+        'keyboardDidShow',
+        (e) => {
+          setKeyboardOffset(e.endCoordinates.height);
+        }
+      );
+      const keyboardDidHideListener = Keyboard.addListener(
+        'keyboardDidHide',
+        () => {
+          setKeyboardOffset(0);
+        }
+      );
+      return () => {
+        keyboardDidShowListener.remove();
+        keyboardDidHideListener.remove();
+      };
+    }
+  }, []);
 
   const fetchMemosAndProfiles = async () => {
-    const currentUser = auth.currentUser;
+    const currentUser = auth().currentUser;
     if (!currentUser) {
       setLoading(false);
       return;
     }
 
     try {
-      const memosRef = collection(db, 'users', currentUser.uid, 'memos');
-      const q = query(memosRef, orderBy('updatedAt', 'desc'));
-      const memoSnap = await getDocs(q);
-
-      const memosDataPromises = memoSnap.docs.map(async (document: any) => {
+      const memoSnap = await firestore().collection('users').doc(currentUser.uid).collection('memos').orderBy('updatedAt', 'desc').get();
+      const rawMemos = memoSnap.docs.map(document => {
         const data = document.data();
-        const targetId = data.targetUserId;
-
-        let profileData = {};
-        try {
-          const userDoc = await getDoc(doc(db, 'users', targetId));
-          if (userDoc.exists()) {
-            const uData = userDoc.data();
-            profileData = {
-              displayName: uData?.displayName, photoURL: uData?.photoURL, gender: uData?.gender, mainPhotoStatus: uData?.mainPhotoStatus,
-            };
-          }
-        } catch (e) {
-          console.error("Profile fetch error for:", targetId, e);
-        }
-
-        if (data.text && data.text.trim() !== '') {
-          return {
-            id: document.id, targetUserId: targetId, text: data.text, updatedAt: data.updatedAt, userProfile: profileData
-          } as MemoData;
-        }
-        return null;
+        return {
+          id: document.id,
+          targetUserId: data.targetUserId,
+          text: data.text,
+          updatedAt: data.updatedAt,
+        };
       });
 
-      const resolvedMemosData = await Promise.all(memosDataPromises);
-      const finalMemoData = resolvedMemosData.filter((memo: any): memo is MemoData => memo !== null);
+      const targetUserIds = rawMemos.map(m => m.targetUserId).filter(Boolean);
+
+      const profilesMap = new Map();
+
+      if (targetUserIds.length > 0) {
+        const chunkSize = 10;
+        const chunkPromises = [];
+
+        for (let i = 0; i < targetUserIds.length; i += chunkSize) {
+          const chunk = targetUserIds.slice(i, i + chunkSize);
+          const qUsers = firestore().collection('users').where(firestore.FieldPath.documentId(), 'in', chunk);
+          chunkPromises.push(qUsers.get());
+        }
+
+        const userSnaps = await Promise.all(chunkPromises);
+        userSnaps.forEach(userSnap => {
+          userSnap.forEach(userDoc => {
+            const uData = userDoc.data();
+            profilesMap.set(userDoc.id, {
+              displayName: uData?.displayName,
+              photoURL: uData?.photoURL,
+              gender: uData?.gender,
+              mainPhotoStatus: uData?.mainPhotoStatus,
+            });
+          });
+        });
+      }
+
+      const finalMemoData = rawMemos.filter(memo => memo.text.trim() !== '')
+        .map(memo => ({
+          ...memo,
+          userProfile: profilesMap.get(memo.targetUserId) || {}
+        })) as MemoData[];
+
       setMemos(finalMemoData);
     } catch (error) {
       console.error("Memos fetch error:", error);
@@ -149,7 +158,7 @@ export default function MyMemoSettingScreen({ navigation }: any) {
     if (!selectedMemo) return;
     setIsSaving(true);
 
-    const currentUser = auth.currentUser;
+    const currentUser = auth().currentUser;
     if (!currentUser) {
       setIsSaving(false);
       Alert.alert('エラー', 'ログイン状態を確認できませんでした。')
@@ -157,9 +166,8 @@ export default function MyMemoSettingScreen({ navigation }: any) {
     }
 
     try {
-      const memoRef = doc(db, 'users', currentUser.uid, 'memos', selectedMemo.targetUserId);
-      await setDoc(memoRef, {
-        text: memoText.trim(), targetUserId: selectedMemo.targetUserId, updatedAt: serverTimestamp(),
+      await firestore().collection('users').doc(currentUser.uid).collection('memos').doc(selectedMemo.targetUserId).set({
+        text: memoText.trim(), targetUserId: selectedMemo.targetUserId, updatedAt: firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
       setIsModalVisible(false);
       fetchMemosAndProfiles();
@@ -358,7 +366,7 @@ const styles = StyleSheet.create({
   },
   emptyText: { fontSize: 14, color: '#94A3B8', textAlign: 'center', lineHeight: 24 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.6)', justifyContent: 'flex-end' },
-  modalBackdrop: { ...StyleSheet.absoluteFillObject },
+  modalBackdrop: { ...StyleSheet.absoluteFill },
   memoModalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24 },
   modalHandle: { width: 40, height: 4, backgroundColor: '#E2E8F0', borderRadius: 2, alignSelf: 'center', marginBottom: 24 },
   memoModalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },

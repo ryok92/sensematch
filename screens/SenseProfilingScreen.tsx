@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, Alert, ActivityIndicator, Dimensions, StyleSheet, ScrollView, StatusBar, Platform
+  View, Text, TouchableOpacity, Alert, ActivityIndicator, Dimensions, StyleSheet, ScrollView, StatusBar, Platform, Image
 } from 'react-native';
-import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { getFirestore, doc, getDoc, setDoc, serverTimestamp, updateDoc } from '@react-native-firebase/firestore';
-import { getAuth } from '@react-native-firebase/auth';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import firestore from '@react-native-firebase/firestore';
+import auth from '@react-native-firebase/auth';
 import questionsDataJson from '../assets/questions.json';
 
 const { width, height } = Dimensions.get('window');
@@ -27,7 +26,7 @@ const allQuestions = questionsDataJson as QuestionMaster[];
 
 const HeaderBackground = () => (
   <View style={styles.headerBackground}>
-    <Image source={require('../assets/brain.webp')} style={styles.headerBackgroundImage} contentFit="cover" />
+    <Image source={require('../assets/brain.webp')} style={styles.headerBackgroundImage} resizeMode="cover" />
   </View>
 );
 
@@ -43,36 +42,25 @@ export default function SenseProfilingScreen({ navigation, route }: { navigation
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const auth = getAuth();
-  const db = getFirestore();
-
   useEffect(() => {
     const initialzeProfiling = async () => {
       try {
-        const user = auth.currentUser;
+        const user = auth().currentUser;
         if (!user) {
           Alert.alert("エラー", "ログインしていません");
           setLoading(false);
           return;
         }
 
-        const userRef = doc(db, 'users', user.uid);
-        const senseDataRef = doc(db, 'users', user.uid, 'senseData', 'profile');
-
-        const userSnap = await getDoc(userRef);
+        const senseDataSnap = await firestore().collection('users').doc(user.uid).collection('senseData').doc('profile').get();
         let answerCount = 0;
-        if (userSnap.exists()) {
-          answerCount = userSnap.data()?.senseAnswerCount || 0;
-        }
-
-        const senseDataSnap = await getDoc(senseDataRef);
         let questionIds: string[] = [];
         let savedAnswers: { [key: string]: string } = {};
         let savedAiProfiles: { [key: string]: string } = {};
         let fetchedUrls: { [key: string]: string } = {};
-
         if (senseDataSnap.exists()) {
           const senseData = senseDataSnap.data();
+          answerCount = senseData?.senseAnswerCount || 0;
           savedAnswers = senseData?.senseAnswers || {};
           savedAiProfiles = senseData?.senseProfiles || {};
           questionIds = senseData?.senseQuestionIds || [];
@@ -154,16 +142,14 @@ export default function SenseProfilingScreen({ navigation, route }: { navigation
     setAnswers(newAnswers);
 
     try {
-      const user = auth.currentUser;
+      const user = auth().currentUser;
       if (user) {
-        const senseDataRef = doc(db, 'users', user.uid, 'senseData', 'profile');
-        await setDoc(senseDataRef, {
-          senseAnswers: newAnswers, senseProfiles: newAiProfiles, shouldGenerateVector: false, uploadedAt: serverTimestamp(),
-        }, { merge: true });
-
-        const userRef = doc(db, 'users', user.uid);
-        await setDoc(userRef, {
+        await firestore().collection('users').doc(user.uid).collection('senseData').doc('profile').set({
+          senseAnswers: newAnswers,
+          senseProfiles: newAiProfiles,
+          shouldGenerateVector: false,
           senseAnswerCount: currentQuestionIndex + 1,
+          uploadedAt: firestore.FieldValue.serverTimestamp(),
         }, { merge: true });
       }
 
@@ -191,10 +177,9 @@ export default function SenseProfilingScreen({ navigation, route }: { navigation
           onPress: async () => {
             try {
               setSaving(true);
-              const user = auth.currentUser;
+              const user = auth().currentUser;
               if (user) {
-                const senseDataRef = doc(db, 'users', user.uid, 'senseData', 'profile');
-                await updateDoc(senseDataRef, {
+                await firestore().collection('users').doc(user.uid).collection('senseData').doc('profile').update({
                   shouldGenerateVector: true,
                 });
               }
@@ -251,7 +236,7 @@ export default function SenseProfilingScreen({ navigation, route }: { navigation
             {currentQuestion?.type === 'image_choice' && (
               <View style={styles.imageQuestionContainer}>
                 {imageUrl ? (
-                  <Image source={{ uri: imageUrl }} style={styles.fullQuestionImage} contentFit="cover" cachePolicy="memory-disk" />
+                  <Image source={{ uri: imageUrl, cache: 'force-cache' }} style={styles.fullQuestionImage} resizeMode="cover" />
                 ) : (
                   <View style={[styles.fullQuestionImage, { justifyContent: 'center', alignItems: 'center' }]}>
                     <ActivityIndicator color={COLORS.primary} />
@@ -318,7 +303,7 @@ const styles = StyleSheet.create({
     position: 'absolute', top: 0, left: 0, right: 0, height: 320, borderBottomLeftRadius: 40, borderBottomRightRadius: 40,
     overflow: 'hidden', backgroundColor: COLORS.primary,
   },
-  headerBackgroundImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%', opacity: 0.8, },
+  headerBackgroundImage: { ...StyleSheet.absoluteFill, width: '100%', height: '100%', opacity: 0.8, },
   introContainer: { flex: 1, alignItems: 'center', paddingTop: 10, paddingHorizontal: 24, },
   introTitle: {
     fontSize: 28, fontWeight: '900', color: '#FFFFFF', marginBottom: 12, textShadowColor: 'rgba(0,0,0,0.4)',
@@ -359,7 +344,7 @@ const styles = StyleSheet.create({
     shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 4,
   },
   fullQuestionImage: { width: '100%', height: '100%' },
-  imageOverlay: { ...StyleSheet.absoluteFillObject, borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)', borderRadius: 20, },
+  imageOverlay: { ...StyleSheet.absoluteFill, borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)', borderRadius: 20, },
   questionText: { fontSize: 18, fontWeight: 'bold', color: COLORS.textMain, textAlign: 'center', marginBottom: 30, lineHeight: 28, },
   optionsContainer: { width: '100%', gap: 12, },
   optionButton: {

@@ -1,20 +1,12 @@
 import React, { useState, useRef } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  StyleSheet,
-  ActivityIndicator,
-  NativeSyntheticEvent
+  View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Alert,
+  StyleSheet, ActivityIndicator, NativeSyntheticEvent
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityicons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import LinearGradient from 'react-native-linear-gradient';
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 
@@ -75,9 +67,9 @@ export default function GameEntryScreen({ navigation }: { navigation: any }) {
           "このルームは既にゲームが開始または終了しています。\n新しくルームを作成しますか？",
           [
             { text: "キャンセル", style: "cancel" },
-            { 
-              text: "作成画面へ", 
-              onPress: () => navigation.navigate('GameCreate') 
+            {
+              text: "作成画面へ",
+              onPress: () => navigation.navigate('GameCreate')
             }
           ]
         );
@@ -90,15 +82,15 @@ export default function GameEntryScreen({ navigation }: { navigation: any }) {
           "このコードは有効期限(24時間)が切れています。\n新しくルームを作成しますか？",
           [
             { text: "キャンセル", style: "cancel" },
-            { 
-              text: "作成画面へ", 
-              onPress: () => navigation.navigate('GameCreate') 
+            {
+              text: "作成画面へ",
+              onPress: () => navigation.navigate('GameCreate')
             }
           ]
         );
       } else {
         // 条件C: 正常 (参加処理)
-        
+
         // ユーザーIDをplayers配列に追加
         await firestore().collection('rooms').doc(roomId).update({
           players: firestore.FieldValue.arrayUnion(currentUser.uid)
@@ -175,7 +167,7 @@ export default function GameEntryScreen({ navigation }: { navigation: any }) {
             {code.map((c, i) => (
               <TextInput
                 key={i}
-                ref={(el) => {(inputRefs.current[i] = el)}}
+                ref={(el) => { (inputRefs.current[i] = el) }}
                 style={styles.codeInput}
                 keyboardType="number-pad"
                 value={c}
@@ -189,8 +181,8 @@ export default function GameEntryScreen({ navigation }: { navigation: any }) {
           </View>
 
           {/* アクションボタン */}
-          <TouchableOpacity 
-            onPress={handleJoin} 
+          <TouchableOpacity
+            onPress={handleJoin}
             style={[styles.joinButton, isLoading && styles.joinButtonDisabled]}
             disabled={isLoading}
           >

@@ -5,15 +5,11 @@ import {
   TouchableWithoutFeedback, Keyboard, GestureResponderEvent, PanResponderGestureState
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import * as ImagePicker from 'react-native-image-crop-picker';
-
-import { getAuth } from '@react-native-firebase/auth';
-import {
-  getFirestore, doc, collection, onSnapshot, updateDoc, addDoc, deleteDoc,
-  writeBatch, serverTimestamp, query, orderBy, deleteField
-} from '@react-native-firebase/firestore';
-import { getStorage, ref, getDownloadURL, deleteObject } from '@react-native-firebase/storage';
+import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
+import storage from '@react-native-firebase/storage';
 
 if (Platform.OS === 'android') {
   if (UIManager.setLayoutAnimationEnabledExperimental) {
@@ -63,9 +59,6 @@ export default function PhotoManagerScreen({ navigation }: any) {
   const [mainPhotoUploadHistory, setMainPhotoUploadHistory] = useState<number[]>([]);
   const [subPhotoUploadHistory, setSubPhotoUploadHistory] = useState<number[]>([]);
 
-  const auth = getAuth();
-  const db = getFirestore();
-  const storageInstance = getStorage();
   const ONE_DAY = 24 * 60 * 60 * 1000;
 
   useEffect(() => {
@@ -91,21 +84,21 @@ export default function PhotoManagerScreen({ navigation }: any) {
   }, []);
 
   useEffect(() => {
-    const user = auth.currentUser;
+    const user = auth().currentUser;
     if (!user) {
       setLoading(false);
       return;
     }
 
-    const userDocRef = doc(db, 'users', user.uid);
-    const unsubscribeUser = onSnapshot(userDocRef, (docSnap) => {
+    const userDocRef = firestore().collection('users').doc(user.uid);
+    const unsubscribeUser = userDocRef.onSnapshot((docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setUserGender(data?.gender || 'male');
 
         const now = Date.now();
-        setMainPhotoUploadHistory(data?.mainPhotoUploadHistory?.filter((time:number) => now - time < ONE_DAY) || []);
-        setSubPhotoUploadHistory(data?.subPhotoUploadHistory?.filter((time:number) => now - time < ONE_DAY) || []);
+        setMainPhotoUploadHistory(data?.mainPhotoUploadHistory?.filter((time: number) => now - time < ONE_DAY) || []);
+        setSubPhotoUploadHistory(data?.subPhotoUploadHistory?.filter((time: number) => now - time < ONE_DAY) || []);
 
         if (data?.photoURL && data.photoURL !== '') {
           setMainPhoto({
@@ -123,10 +116,8 @@ export default function PhotoManagerScreen({ navigation }: any) {
       setLoading(false);
     });
 
-    const subPhotosRef = collection(db, 'users', user.uid, 'subPhotos');
-    const q = query(subPhotosRef, orderBy('priority', 'asc'));
-
-    const unsubscribeSubPhotos = onSnapshot(q, (snapshot) => {
+    const q = firestore().collection('users').doc(user.uid).collection('subPhotos').orderBy('priority', 'asc');
+    const unsubscribeSubPhotos = q.onSnapshot((snapshot) => {
       const newSlots: (PhotoData | null)[] = Array(5).fill(null);
       snapshot.docs.forEach((docSnap: any) => {
         const p = docSnap.data() as PhotoData;
@@ -211,7 +202,7 @@ export default function PhotoManagerScreen({ navigation }: any) {
 
   const handleUploadProcess = async (uri: string) => {
     setUploading(true);
-    const user = auth.currentUser;
+    const user = auth().currentUser;
     if (!user) return;
 
     try {
@@ -220,20 +211,19 @@ export default function PhotoManagerScreen({ navigation }: any) {
       const storagePath = `users/${user.uid}/photos/${timestamp}_${filename}`;
       const uploadUri = Platform.OS === 'ios' ? uri.replace('file://', '') : uri;
 
-      const reference = ref(storageInstance, storagePath);
+      const reference = storage().ref(storagePath);
       await reference.putFile(uploadUri);
-      const downloadURL = await getDownloadURL(reference);
+      const downloadURL = await reference.getDownloadURL();
 
       const now = Date.now();
       const recentUploads = mainPhotoUploadHistory.filter(time => now - time < ONE_DAY);
       const newHistory = [...recentUploads, now];
 
-      const userDocRef = doc(db, 'users', user.uid);
-      await updateDoc(userDocRef, {
+      await firestore().collection('users').doc(user.uid).update({
         photoURL: downloadURL,
         photoStoragePath: storagePath,
         mainPhotoStatus: 'reviewing',
-        updatedAt: serverTimestamp(),
+        updatedAt: firestore.FieldValue.serverTimestamp(),
         mainPhotoUploadHistory: newHistory,
       });
 
@@ -264,22 +254,24 @@ export default function PhotoManagerScreen({ navigation }: any) {
           onPress: async () => {
             setUploading(true);
             try {
-              const user = auth.currentUser;
+              const user = auth().currentUser;
               if (!user) return;
 
               try {
                 let pathToDelete = mainPhoto.storagePath;
                 if (pathToDelete) {
-                  const photoRef = ref(storageInstance, pathToDelete);
-                  await deleteObject(photoRef);
+                  const photoRef = storage().ref(pathToDelete);
+                  await photoRef.delete();
                 }
               } catch (storageError) {
                 console.warn("Storage deletion error:", storageError);
               }
 
-              const userDocRef = doc(db, 'users', user.uid);
-              await updateDoc(userDocRef, {
-                photoURL: '', mainPhotoStatus: '', photoStoragePath: deleteField(), updatedAt: serverTimestamp(),
+              await firestore().collection('users').doc(user.uid).update({
+                photoURL: '',
+                mainPhotoStatus: '',
+                photoStoragePath: firestore.FieldValue.delete(),
+                updatedAt: firestore.FieldValue.serverTimestamp(),
               });
 
               setMainPhoto(null);
@@ -307,11 +299,10 @@ export default function PhotoManagerScreen({ navigation }: any) {
         style: 'destructive',
         onPress: async () => {
           try {
-            const user = auth.currentUser;
+            const user = auth().currentUser;
             if (!user) return;
 
-            const docRef = doc(db, 'users', user.uid, 'subPhotos', photo.id!);
-            await deleteDoc(docRef);
+            await firestore().collection('users').doc(user.uid).collection('subPhotos').doc(photo.id!).delete();
 
             const newPhotos = [...subPhotos];
             newPhotos[index] = null;
@@ -326,7 +317,7 @@ export default function PhotoManagerScreen({ navigation }: any) {
   };
 
   const handleSaveDetail = async () => {
-    const user = auth.currentUser;
+    const user = auth().currentUser;
     if (detailTargetIndex === null || !user) return;
 
     const photo = subPhotos[detailTargetIndex];
@@ -346,9 +337,9 @@ export default function PhotoManagerScreen({ navigation }: any) {
         const storagePath = `users/${user.uid}/photos/${timestamp}_${filename}`;
         const uploadUri = Platform.OS === 'ios' ? draftPhotoUri.replace('file://', '') : draftPhotoUri;
 
-        const reference = ref(storageInstance, storagePath);
+        const reference = storage().ref(storagePath);
         await reference.putFile(uploadUri);
-        finalPhotoUrl = await getDownloadURL(reference);
+        finalPhotoUrl = await reference.getDownloadURL();
         newStatus = 'reviewing';
 
         isPhotoChanged = true;
@@ -370,20 +361,20 @@ export default function PhotoManagerScreen({ navigation }: any) {
         status: newStatus,
         comment: draftComment.trim(),
         tags: tagsArray,
-        updatedAt: serverTimestamp(),
+        updatedAt: firestore.FieldValue.serverTimestamp(),
       };
 
       if (photo && photo.id) {
-        const docRef = doc(db, 'users', user.uid, 'subPhotos', photo.id);
-        await updateDoc(docRef, subPhotoData);
+        await firestore().collection('users').doc(user.uid).collection('subPhotos').doc(photo.id).update(subPhotoData);
       } else {
-        const subCollRef = collection(db, 'users', user.uid, 'subPhotos');
-        await addDoc(subCollRef, { ...subPhotoData, createdAt: serverTimestamp() });
+        await firestore().collection('users').doc(user.uid).collection('subPhotos').add({
+          ...subPhotoData,
+          createdAt: firestore.FieldValue.serverTimestamp()
+        });
       }
 
       if (isPhotoChanged) {
-        const userDocRef = doc(db, 'users', user.uid);
-        await updateDoc(userDocRef, {
+        await firestore().collection('users').doc(user.uid).update({
           subPhotoUploadHistory: newHistory
         });
       }
@@ -545,14 +536,14 @@ export default function PhotoManagerScreen({ navigation }: any) {
   };
 
   const updatePriorities = async (photos: (PhotoData | null)[]) => {
-    const user = auth.currentUser;
+    const user = auth().currentUser;
     if (!user) return;
     try {
-      const batch = writeBatch(db);
+      const batch = firestore().batch();
 
       photos.forEach((photo, idx) => {
         if (photo && photo.id) {
-          const docRef = doc(db, 'users', user.uid, 'subPhotos', photo.id);
+          const docRef = firestore().collection('users').doc(user.uid).collection('subPhotots').doc(photo.id);
           batch.update(docRef, { priority: idx + 1 });
         }
       });
@@ -800,7 +791,7 @@ export default function PhotoManagerScreen({ navigation }: any) {
 
           <Text style={styles.footerNote}>
             ※ 他人の画像やキャラクター・公序良俗に反する写真は掲載できません。{'\n'}
-            審査完了まで1時間〜24時間程度かかる場合があります。
+            審査完了まで1時間〜24時間程度かかる場合が御座います。
           </Text>
         </View>
 
@@ -936,17 +927,14 @@ export default function PhotoManagerScreen({ navigation }: any) {
           <View style={[styles.detailModalContainer, { paddingBottom: keyboardOffset }]} >
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
               <View style={styles.detailModalBackground}>
-                {/* ▼▼▼ 編集箇所: モーダルを閉じる処理を closeDetailModal に変更 ▼▼▼ */}
                 <TouchableWithoutFeedback onPress={closeDetailModal}>
                   <View style={styles.detailModalDismissArea} />
                 </TouchableWithoutFeedback>
-                {/* ▲▲▲ 編集箇所 ▲▲▲ */}
 
                 <View style={[styles.detailModalContent, { paddingBottom: insets.bottom + 20 }]}>
                   <View style={styles.modalHandle} />
 
                   <View style={styles.detailModalTopRow}>
-                    {/* ▼▼▼ 編集箇所: プレビュー画像の表示元を previewUri に変更 ▼▼▼ */}
                     {previewUri && (
                       <View style={styles.detailImagePreviewContainer}>
                         <Image
@@ -955,7 +943,6 @@ export default function PhotoManagerScreen({ navigation }: any) {
                         />
                       </View>
                     )}
-                    {/* ▲▲▲ 編集箇所 ▲▲▲ */}
 
                     <View style={styles.detailActionButtons}>
                       <TouchableOpacity
@@ -1056,50 +1043,20 @@ export default function PhotoManagerScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  container: { flex: 1, backgroundColor: '#FFFFFF', },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', },
   loadingOverlay: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 999,
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center', alignItems: 'center', zIndex: 999,
   },
-  loadingText: {
-    color: '#FFF',
-    marginTop: 10,
-    fontWeight: 'bold',
-  },
+  loadingText: { color: '#FFF', marginTop: 10, fontWeight: 'bold', },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16,
+    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
   },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#333',
-  },
-  headerButton: {
-    padding: 8,
-    width: 44,
-  },
-  scrollContent: {
-    paddingBottom: 20,
-  },
-
+  headerTitle: { fontSize: 17, fontWeight: '700', color: '#333', },
+  headerButton: { padding: 8, width: 44, },
+  scrollContent: { paddingBottom: 20, },
   tipsContainer: {
     flexDirection: 'row', backgroundColor: '#F0F7FF', padding: 10, marginHorizontal: 24, marginTop: 10, marginBottom: 10,
     borderRadius: 12, borderWidth: 1, borderColor: '#D0E3F5',
@@ -1118,454 +1075,133 @@ const styles = StyleSheet.create({
   limitStatusLabel: { fontSize: 12, color: '#4A5568', fontWeight: '600', },
   limitStatusValue: { fontSize: 12, color: '#718096' },
   limitStatusHighlight: { fontSize: 14, fontWeight: 'bold', color: '#E53E3E', },
-
-  section: {
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#333',
-  },
-  mainLabelTag: {
-    backgroundColor: '#4A90E2',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  mainLabelText: {
-    fontSize: 10,
-    color: '#FFF',
-    fontWeight: 'bold',
-  },
-  subNote: {
-    fontSize: 11,
-    color: '#999',
-  },
-
+  section: { paddingHorizontal: 24, paddingVertical: 16, },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 16, },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#333', },
+  mainLabelTag: { backgroundColor: '#4A90E2', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, },
+  mainLabelText: { fontSize: 10, color: '#FFF', fontWeight: 'bold', },
+  subNote: { fontSize: 11, color: '#999', },
   newFeatureBanner: {
-    flexDirection: 'row',
-    backgroundColor: '#EFF6FF',
-    borderColor: '#DBEAFE',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
-    alignItems: 'flex-start',
+    flexDirection: 'row', backgroundColor: '#EFF6FF', borderColor: '#DBEAFE', borderWidth: 1, borderRadius: 12,
+    padding: 12, marginBottom: 16, alignItems: 'flex-start',
   },
   newFeatureIconBg: {
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-    padding: 6,
-    borderRadius: 20,
-    marginRight: 10,
-    marginTop: 2,
+    backgroundColor: 'rgba(59, 130, 246, 0.1)', padding: 6, borderRadius: 20, marginRight: 10, marginTop: 2,
   },
-  newFeatureTextContainer: {
-    flex: 1,
-  },
-  newFeatureTitle: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#1E3A8A',
-    marginBottom: 4,
-  },
-  newFeatureDesc: {
-    fontSize: 10,
-    color: '#1D4ED8',
-    lineHeight: 14,
-  },
-
+  newFeatureTextContainer: { flex: 1, },
+  newFeatureTitle: { fontSize: 12, fontWeight: 'bold', color: '#1E3A8A', marginBottom: 4, },
+  newFeatureDesc: { fontSize: 10, color: '#1D4ED8', lineHeight: 14, },
   mainPhotoContainer: {
-    width: 200,
-    height: 266,
-    borderRadius: 16,
-    alignSelf: 'center',
-    backgroundColor: '#F5F5F5',
-    position: 'relative',
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: '#4A90E2',
-    shadowColor: "#4A90E2",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 5,
+    width: 200, height: 266, borderRadius: 16, alignSelf: 'center', backgroundColor: '#F5F5F5', position: 'relative',
+    overflow: 'hidden', borderWidth: 2, borderColor: '#4A90E2', shadowColor: "#4A90E2", shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2, shadowRadius: 10, elevation: 5,
   },
-  mainImage: {
-    width: '100%',
-    height: '100%',
-  },
+  mainImage: { width: '100%', height: '100%', },
   changeMainButton: {
-    position: 'absolute',
-    bottom: 15,
-    alignSelf: 'center',
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    position: 'absolute', bottom: 15, alignSelf: 'center', backgroundColor: 'rgba(255,255,255,0.95)', paddingHorizontal: 16,
+    paddingVertical: 8, borderRadius: 20, flexDirection: 'row', alignItems: 'center', shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2, shadowRadius: 4, elevation: 3,
   },
-  changeMainText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#333',
-  },
+  changeMainText: { fontSize: 12, fontWeight: '700', color: '#333', },
   mainPhotoBadge: {
-    position: 'absolute',
-    bottom: 12,
-    alignSelf: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    position: 'absolute', bottom: 12, alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10,
+    paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
   },
-  mainPhotoBadgeText: {
-    color: '#FFF',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-
+  mainPhotoBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '700', letterSpacing: 0.5, },
   subSection: {
-    backgroundColor: '#F9FAFB',
-    paddingTop: 24,
-    paddingBottom: 30,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    marginTop: 10,
+    backgroundColor: '#F9FAFB', paddingTop: 24, paddingBottom: 30, borderTopLeftRadius: 30, borderTopRightRadius: 30, marginTop: 10,
   },
-  gridContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: -SPACING / 2,
-  },
-  gridItemWrapper: {
-    width: ITEM_SIZE,
-    height: ITEM_SIZE,
-    margin: SPACING / 2,
-    position: 'relative',
-  },
+  gridContainer: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -SPACING / 2, },
+  gridItemWrapper: { width: ITEM_SIZE, height: ITEM_SIZE, margin: SPACING / 2, position: 'relative', },
   gridItem: {
-    flex: 1,
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#FFF',
-    position: 'relative',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    flex: 1, borderRadius: 12, overflow: 'hidden', backgroundColor: '#FFF', position: 'relative', shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
   },
   draggingItem: {
-    borderColor: '#4A90E2',
-    borderWidth: 2,
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 10,
-    zIndex: 999,
+    borderColor: '#4A90E2', borderWidth: 2, shadowOpacity: 0.3, shadowRadius: 10, elevation: 10, zIndex: 999,
   },
-  gridItemContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  gridItemContent: { flex: 1, justifyContent: 'center', alignItems: 'center', },
   emptyItem: {
-    borderWidth: 2,
-    borderColor: '#E0E0E0',
-    borderStyle: 'dashed',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FAFAFA',
-    width: '100%',
-    height: '100%',
+    borderWidth: 2, borderColor: '#E0E0E0', borderStyle: 'dashed', justifyContent: 'center',
+    alignItems: 'center', backgroundColor: '#FAFAFA', width: '100%', height: '100%',
   },
-  gridImage: {
-    width: '100%',
-    height: '100%',
-  },
-  addText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#999',
-    marginTop: 4,
-  },
-  rejectedImage: {
-    opacity: 0.3,
-  },
-
+  gridImage: { width: '100%', height: '100%', },
+  addText: { fontSize: 11, fontWeight: '600', color: '#999', marginTop: 4, },
+  rejectedImage: { opacity: 0.3, },
   badge: {
-    position: 'absolute',
-    top: 6,
-    left: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    zIndex: 10,
+    position: 'absolute', top: 6, left: 6, flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, zIndex: 10,
   },
-  badgeReviewing: {
-    backgroundColor: 'rgba(249, 115, 22, 0.9)',
-  },
-  badgeRejected: {
-    backgroundColor: 'rgba(239, 68, 68, 0.9)',
-  },
-  badgeText: {
-    color: '#FFF',
-    fontSize: 9,
-    fontWeight: 'bold',
-    marginLeft: 2,
-  },
-
-  rejectedOverlay: {
-    position: 'absolute',
-    inset: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
+  badgeReviewing: { backgroundColor: 'rgba(249, 115, 22, 0.9)', },
+  badgeRejected: { backgroundColor: 'rgba(239, 68, 68, 0.9)', },
+  badgeText: { color: '#FFF', fontSize: 9, fontWeight: 'bold', marginLeft: 2, },
+  rejectedOverlay: { position: 'absolute', inset: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', },
   rejectedText: {
-    backgroundColor: 'rgba(239, 68, 68, 1)',
-    color: '#FFF',
-    fontSize: 10,
-    fontWeight: 'bold',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
+    backgroundColor: 'rgba(239, 68, 68, 1)', color: '#FFF', fontSize: 10, fontWeight: 'bold',
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4,
   },
-
-  footerNote: {
-    fontSize: 9.3,
-    color: '#999',
-    textAlign: 'center',
-    marginTop: 24,
-    lineHeight: 16,
-  },
-
+  footerNote: { fontSize: 9.3, color: '#999', textAlign: 'center', marginTop: 24, lineHeight: 16, },
   previewOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingTop: 24,
-    paddingBottom: 6,
-    paddingHorizontal: 6,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    position: 'absolute', bottom: 0, left: 0, right: 0, paddingTop: 24, paddingBottom: 6, paddingHorizontal: 6,
+    justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)',
   },
-  previewTagText: {
-    color: '#93C5FD',
-    fontSize: 9,
-    fontWeight: 'bold',
-    marginBottom: 2,
-  },
-  previewCommentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  previewCommentText: {
-    color: '#FFF',
-    fontSize: 10,
-    fontWeight: '600',
-    marginLeft: 4,
-    flex: 1,
-  },
-
-  detailModalContainer: {
-    flex: 1,
-  },
-  detailModalBackground: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  detailModalDismissArea: {
-    flex: 1,
-  },
+  previewTagText: { color: '#93C5FD', fontSize: 9, fontWeight: 'bold', marginBottom: 2, },
+  previewCommentRow: { flexDirection: 'row', alignItems: 'center', },
+  previewCommentText: { color: '#FFF', fontSize: 10, fontWeight: '600', marginLeft: 4, flex: 1, },
+  detailModalContainer: { flex: 1, },
+  detailModalBackground: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)', },
+  detailModalDismissArea: { flex: 1, },
   detailModalContent: {
-    backgroundColor: '#FFF',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    paddingHorizontal: 24,
-    paddingTop: 12,
+    backgroundColor: '#FFF', borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingHorizontal: 24, paddingTop: 12,
   },
-  modalHandle: {
-    width: 48,
-    height: 6,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 3,
-    alignSelf: 'center',
-    marginBottom: 24,
-  },
-  detailModalTopRow: {
-    flexDirection: 'row',
-    marginBottom: 24,
-  },
+  modalHandle: { width: 48, height: 6, backgroundColor: '#E5E7EB', borderRadius: 3, alignSelf: 'center', marginBottom: 24, },
+  detailModalTopRow: { flexDirection: 'row', marginBottom: 24, },
   detailImagePreviewContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
+    width: 100, height: 100, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#F3F4F6',
   },
-  detailImagePreview: {
-    width: '100%',
-    height: '100%',
-  },
-  detailActionButtons: {
-    flex: 1,
-    marginLeft: 16,
-    justifyContent: 'center',
-  },
+  detailImagePreview: { width: '100%', height: '100%', },
+  detailActionButtons: { flex: 1, marginLeft: 16, justifyContent: 'center', },
   detailChangeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    marginBottom: 12,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', paddingVertical: 10,
+    paddingHorizontal: 16, borderRadius: 12, marginBottom: 12,
   },
-  detailChangeBtnText: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#374151',
-    marginLeft: 8,
-  },
+  detailChangeBtnText: { fontSize: 13, fontWeight: 'bold', color: '#374151', marginLeft: 8, },
   detailDeleteBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF2F2', paddingVertical: 10,
+    paddingHorizontal: 16, borderRadius: 12,
   },
-  detailDeleteBtnText: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#EF4444',
-    marginLeft: 8,
-  },
-  detailFormArea: {
-    marginBottom: 24,
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  inputLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-    marginLeft: 4,
-  },
-  inputLabel: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#6B7280',
-    marginLeft: 4,
-  },
+  detailDeleteBtnText: { fontSize: 13, fontWeight: 'bold', color: '#EF4444', marginLeft: 8, },
+  detailFormArea: { marginBottom: 24, },
+  inputGroup: { marginBottom: 16, },
+  inputLabelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, marginLeft: 4, },
+  inputLabel: { fontSize: 12, fontWeight: 'bold', color: '#6B7280', marginLeft: 4, },
   textInput: {
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: '#1F2937',
+    backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 16, paddingHorizontal: 16,
+    paddingVertical: 12, fontSize: 14, color: '#1F2937',
   },
-  textArea: {
-    height: 80,
-    textAlignVertical: 'top',
-  },
+  textArea: { height: 80, textAlignVertical: 'top', },
   detailSaveBtn: {
-    backgroundColor: '#3B82F6',
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: 'center',
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-    marginTop: 8,
+    backgroundColor: '#3B82F6', paddingVertical: 16, borderRadius: 16, alignItems: 'center', shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4, marginTop: 8,
   },
-  detailSaveBtnText: {
-    color: '#FFF',
-    fontSize: 15,
-    fontWeight: 'bold',
-  },
-  selectedTagsContainer: {
-    marginBottom: 12,
-    paddingVertical: 12,
-  },
-  selectedTagsScroll: {
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    minHeight: 32,
-  },
-  placeholderTagText: {
-    fontSize: 12,
-    color: '#94A3B8',
-  },
+  detailSaveBtnText: { color: '#FFF', fontSize: 15, fontWeight: 'bold', },
+  selectedTagsContainer: { marginBottom: 12, paddingVertical: 12, },
+  selectedTagsScroll: { paddingHorizontal: 12, alignItems: 'center', minHeight: 32, },
+  placeholderTagText: { fontSize: 12, color: '#94A3B8', },
   tagChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2563EB',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    marginRight: 8,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#2563EB', paddingVertical: 8,
+    paddingHorizontal: 12, borderRadius: 20, marginRight: 8,
   },
-  tagChipText: {
-    color: '#FFF',
-    fontSize: 12,
-    alignItems: 'center',
-  },
-  tagInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+  tagChipText: { color: '#FFF', fontSize: 12, alignItems: 'center', },
+  tagInputRow: { flexDirection: 'row', alignItems: 'center', },
   tagInputField: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#1F2937',
-    marginRight: 8,
+    flex: 1, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 16,
+    paddingVertical: 10, fontSize: 14, color: '#1F2937', marginRight: 8,
   },
   tagAddButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#2563EB',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 44, height: 44, borderRadius: 12, backgroundColor: '#2563EB', justifyContent: 'center', alignItems: 'center',
   },
-  tagAddButtonDisabled: {
-    backgroundColor: '#E2E8F0',
-  },
+  tagAddButtonDisabled: { backgroundColor: '#E2E8F0', },
   deleteMainPhotoButton: { position: 'absolute', top: 12, right: 12, zIndex: 20 },
   deleteIconBg: {
     width: 28, height: 28, backgroundColor: 'rgba(239, 68, 68, 0.9)', borderRadius: 14,

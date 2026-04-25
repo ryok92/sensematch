@@ -1,16 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  Animated,
-  TouchableOpacity,
-  ImageBackground,
-  Dimensions,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, StyleSheet, Modal, Animated, TouchableOpacity, ImageBackground, Dimensions, } from 'react-native';
+import { LinearGradient } from 'react-native-linear-gradient';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 const { width, height } = Dimensions.get('window');
 
@@ -88,7 +79,7 @@ export default function MatchingScreen({ visible, onClose, onGoToChat, partnerNa
                   end={{ x: 1, y: 1 }}
                   style={styles.primaryButton}
                 >
-                  <Ionicons name="chatbubbles" size={24} colors="#FFF" style={{ marginRight: 8 }} />
+                  <Ionicons name="chatbubbles" size={24} color="#FFF" style={{ marginRight: 8 }} />
                   <Text style={styles.primaryButtonText}>メッセージを送る</Text>
                 </LinearGradient>
               </TouchableOpacity>
@@ -111,97 +102,31 @@ export default function MatchingScreen({ visible, onClose, onGoToChat, partnerNa
 
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-  },
-  backgroundImage: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-  },
+  container: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', },
+  backgroundImage: { flex: 1, width: '100%', height: '100%', },
   overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 80,
-    paddingHorizontal: 20,
+    flex: 1, backgroundColor: 'rgba(255, 255, 255, 0.15)', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 80, paddingHorizontal: 20,
   },
-  content: {
-    alignItems: 'center',
-    marginTop: height * 0.1,
-  },
+  content: { alignItems: 'center', marginTop: height * 0.1, },
   matchTitle: {
-    fontSize: 52,
-    fontWeight: '900',
-    color: '#FFF',
-    textShadowColor: 'rgba(255, 107, 107, 0.9)',
-    textShadowOffset: { width: 0, height: 4 },
-    textShadowRadius: 15,
-    letterSpacing: 3,
-    marginBottom: 20,
-    fontStyle: 'italic',
+    fontSize: 52, fontWeight: '900', color: '#FFF', textShadowColor: 'rgba(255, 107, 107, 0.9)', textShadowOffset: { width: 0, height: 4 },
+    textShadowRadius: 15, letterSpacing: 3, marginBottom: 20, fontStyle: 'italic',
   },
   matchSubtitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#FFF',
-    textAlign: 'center',
-    lineHeight: 34,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 6,
-    marginBottom: 16,
+    fontSize: 22, fontWeight: '800', color: '#FFF', textAlign: 'center', lineHeight: 34, textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 6, marginBottom: 16,
   },
   congratulationsText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFF',
-    textAlign: 'center',
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    overflow: 'hidden',
+    fontSize: 14, fontWeight: '600', color: '#FFF', textAlign: 'center', backgroundColor: 'rgba(0,0,0,0.2)', paddingHorizontal: 16,
+    paddingVertical: 8, borderRadius: 20, overflow: 'hidden',
   },
-  buttonContainer: {
-    width: '100%',
-    alignItems: 'center',
-    marginBottom: 30,
-  },
+  buttonContainer: { width: '100%', alignItems: 'center', marginBottom: 30, },
   primaryButtonWrapper: {
-    width: '90%',
-    shadowColor: '#FF6B6B',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
-    shadowRadius: 16,
-    elevation: 10,
-    marginBottom: 20,
+    width: '90%', shadowColor: '#FF6B6B', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.5, shadowRadius: 16,
+    elevation: 10, marginBottom: 20,
   },
-  primaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 18,
-    borderRadius: 30,
-  },
-  primaryButtonText: {
-    color: '#FFF',
-    fontSize: 18,
-    fontWeight: '800',
-    letterSpacing: 1,
-  },
-  secondaryButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 30,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-  secondaryButtonText: {
-    color: '#FFF',
-    fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  }
+  primaryButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 18, borderRadius: 30, },
+  primaryButtonText: { color: '#FFF', fontSize: 18, fontWeight: '800', letterSpacing: 1, },
+  secondaryButton: { paddingVertical: 12, paddingHorizontal: 30, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', },
+  secondaryButtonText: { color: '#FFF', fontSize: 15, fontWeight: '700', letterSpacing: 0.5, }
 });

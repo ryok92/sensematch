@@ -478,10 +478,10 @@ const styles = StyleSheet.create({
 
   spotlightOverlay: { position: 'absolute', width: 3000, height: 3000, borderRadius: 1500, borderWidth: 1500 - LIGHT_RADIUS, borderColor: 'rgba(0,0,0,0.95)' },
   lightMarker: { position: 'absolute', width: 8, height: 8, borderRadius: 4, backgroundColor: '#FFD700', transform: [{translateX: -4}, {translateY: 4}] },
-  centerOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', zIndex: 20 },
+  centerOverlay: { ...StyleSheet.absoluteFill, justifyContent: 'center', alignItems: 'center', zIndex: 20 },
   pauseBox: { padding: 20, backgroundColor: 'rgba(0,0,0,0.8)', borderRadius: 10, borderWidth: 1, borderColor: '#FFF' },
   pauseText: { color: '#FFF', fontSize: 24, fontWeight: 'bold' },
-  fullScreenOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center', zIndex: 100, padding: 20 },
+  fullScreenOverlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center', zIndex: 100, padding: 20 },
   titleText: { color: '#FFD700', fontSize: 32, fontWeight: 'bold', textAlign: 'center', marginBottom: 30 },
   mainButton: { backgroundColor: '#FFD700', paddingHorizontal: 40, paddingVertical: 15, borderRadius: 30 },
   mainButtonText: { color: '#000', fontWeight: 'bold', fontSize: 18 },

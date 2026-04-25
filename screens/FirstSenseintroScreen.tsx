@@ -68,7 +68,6 @@ export default function SenseIntroScreen({ navigation }: { navigation: any }) {
           return;
         }
 
-        const userRef = firestore().collection('users').doc(user.uid).collection('private').doc('settings');
         const senseDataRef = firestore().collection('users').doc(user.uid).collection('senseData').doc('profile');
 
         const senseDataSnap = await senseDataRef.get();
@@ -107,17 +106,10 @@ export default function SenseIntroScreen({ navigation }: { navigation: any }) {
             })
           );
 
-          const batch = firestore().batch();
-          batch.set(senseDataRef, {
+          await senseDataRef.set({
             senseQuestionIds: questionIds, senseAnswers: {}, senseProfiles: {}, shouldGenerateVector: false,
-            senseImageUrls: imageUrlsDict, createdAt: firestore.FieldValue.serverTimestamp(),
+            senseImageUrls: imageUrlsDict, createdAt: firestore.FieldValue.serverTimestamp(), senseAnswerCount: 0
           }, { merge: true });
-
-          batch.set(userRef, {
-            senseAnswerCount: 0,
-          }, { merge: true });
-
-          await batch.commit();
 
           if (urlsToPrefetch.length > 0) {
             urlsToPrefetch.forEach(url => Image.prefetch(url));

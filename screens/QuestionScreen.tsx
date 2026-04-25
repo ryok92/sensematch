@@ -3,10 +3,10 @@ import {
   View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform,
   Alert, ActivityIndicator, Dimensions
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { getAuth } from '@react-native-firebase/auth';
-import { getFirestore, doc, getDoc, updateDoc } from '@react-native-firebase/firestore';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 const { width } = Dimensions.get('window');
@@ -16,7 +16,7 @@ const SUGGESTED_QUESTIONS = [
   "最近買ってよかったものは？", "座右の銘はありますか？", "好きな・嫌いな食べ物はありますか？"
 ];
 
-//型定義
+
 type RootStackParamList = { Question: undefined; };
 type QuestionScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Question'>;
 interface Props { navigation: QuestionScreenNavigationProp; };
@@ -35,20 +35,16 @@ export default function QuestionScreen({ navigation }: Props) {
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
 
-  const auth = getAuth();
-  const db = getFirestore();
-
   useEffect(() => {
     const fetchQuestion = async () => {
-      const currentUser = auth.currentUser;
+      const currentUser = auth().currentUser;
       if (!currentUser) {
         setLoading(false);
         return
       }
 
       try {
-        const userDocRef = doc(db, 'users', currentUser.uid);
-        const docSnap = await getDoc(userDocRef);
+        const docSnap = await firestore().collection('users').doc(currentUser.uid).get();
         if (docSnap.exists()) {
           const data = docSnap.data()
           if (data?.question) {
@@ -68,15 +64,13 @@ export default function QuestionScreen({ navigation }: Props) {
     if (saving) return;
     setSaving(true);
 
-    const currentUser = auth.currentUser;
+    const currentUser = auth().currentUser;
     if(!currentUser){
       setSaving(false);
       return;
     }
     try {
-      const userDocRef = doc(db, 'users', currentUser.uid)
-      await updateDoc(userDocRef, {question:question.trim()});
-
+      await firestore().collection('users').doc(currentUser.uid).update({question:question.trim()});
       Alert.alert("完了", "質問が設定されました。");
     } catch (error) {
       console.error("エラー", "保存に失敗しました。通信環境を確認下さい。");

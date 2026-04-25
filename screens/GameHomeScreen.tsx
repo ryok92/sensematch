@@ -1,33 +1,31 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  StatusBar,
-  Dimensions
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import {
-  ChevronLeft,
-  Gamepad2,
-  Flashlight,
-  Utensils,
-  Palette,
-  Clock,
-  Sparkles,
-  Info,
-  Users,
-  Plus,
-  ArrowRight
-} from 'lucide-react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import { ChevronLeft, Gamepad2, Flashlight, Utensils, Palette, Clock, Sparkles, Info, Users, Plus, ArrowRight, LucideIcon } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
 
-export default function CoExperienceMenuScreen({ navigation }) {
-  const [selectedGame, setSelectedGame] = useState(null);
+interface Props {
+  navigation: any;
+}
+
+interface Game {
+  id: string;
+  title: string;
+  enTitle: string;
+  desc: string;
+  time: string;
+  tag: string;
+  icon: LucideIcon;
+  gradient: (string | number)[];
+  shadowColor: string;
+  textColor: string;
+  bgColor: string;
+}
+
+export default function CoExperienceMenuScreen({ navigation }: Props) {
+  const [selectedGame, setSelectedGame] = useState<string | null>(null);
 
   const games = [
     {
@@ -51,8 +49,8 @@ export default function CoExperienceMenuScreen({ navigation }) {
       time: '5分〜',
       tag: '共同作業',
       icon: Utensils,
-      gradient: ['#4ADE80', '#10B981'], // green
-      shadowColor: '#10B981', // 影用の濃い緑
+      gradient: ['#4ADE80', '#10B981'],
+      shadowColor: '#10B981',
       textColor: '#10B981',
       bgColor: '#ECFDF5',
     },
@@ -64,8 +62,8 @@ export default function CoExperienceMenuScreen({ navigation }) {
       time: '3分〜',
       tag: '緊張緩和',
       icon: Palette,
-      gradient: ['#C084FC', '#6366F1'], // purple
-      shadowColor: '#8B5CF6', // 影用の濃い紫
+      gradient: ['#C084FC', '#6366F1'],
+      shadowColor: '#8B5CF6',
       textColor: '#A855F7',
       bgColor: '#FAF5FF',
     }
@@ -75,7 +73,6 @@ export default function CoExperienceMenuScreen({ navigation }) {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F9FAFB" />
 
-      {/* ヘッダー */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.iconButton}>
           <ChevronLeft size={28} color="#374151" />
@@ -90,7 +87,6 @@ export default function CoExperienceMenuScreen({ navigation }) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* イントロダクション */}
         <View style={styles.introContainer}>
           <LinearGradient
             colors={['rgba(74, 144, 226, 0.05)', 'rgba(74, 144, 226, 0.1)']}
@@ -112,7 +108,6 @@ export default function CoExperienceMenuScreen({ navigation }) {
           </LinearGradient>
         </View>
 
-        {/* ゲームリスト */}
         <View style={styles.listContainer}>
           {games.map((game) => {
             const isSelected = selectedGame === game.id;
@@ -128,10 +123,7 @@ export default function CoExperienceMenuScreen({ navigation }) {
                   isSelected && styles.cardContainerSelected
                 ]}
               >
-                {/* 1. 背景装飾レイヤー (背面) 
-                  ここには overflow: 'hidden' をつけて、角からはみ出るグラデーションをカットします。
-                  絶対配置にすることで、コンテンツレイヤーと独立させます。
-                */}
+
                 <View style={styles.cardBackgroundClipper}>
                   <LinearGradient
                     colors={game.gradient}
@@ -142,7 +134,6 @@ export default function CoExperienceMenuScreen({ navigation }) {
                 <View style={styles.cardContent}>
 
                   <View style={styles.cardTopRow}>
-                    {/* アイコン (影付き) */}
                     <View style={[
                       styles.shadowContainer,
                       {
@@ -151,7 +142,6 @@ export default function CoExperienceMenuScreen({ navigation }) {
                         shadowRadius: 10,
                         shadowOffset: { width: 0, height: 8 },
                         elevation: 10,
-                        // Androidでelevationを効かせるため、背景色を明示（中身で見えなくなりますが必須）
                         backgroundColor: 'white',
                         borderRadius: 16,
                       }
@@ -166,7 +156,6 @@ export default function CoExperienceMenuScreen({ navigation }) {
                       </LinearGradient>
                     </View>
 
-                    {/* タグ情報 */}
                     <View style={styles.tagContainer}>
                       <View style={[styles.tagBadge, { backgroundColor: game.bgColor }]}>
                         <Text style={[styles.tagText, { color: game.textColor }]}>
@@ -180,14 +169,12 @@ export default function CoExperienceMenuScreen({ navigation }) {
                     </View>
                   </View>
 
-                  {/* タイトル & 説明 */}
                   <View style={styles.textContainer}>
                     <Text style={styles.gameTitle}>{game.title}</Text>
                     <Text style={styles.gameEnTitle}>{game.enTitle}</Text>
                     <Text style={styles.gameDesc}>{game.desc}</Text>
                   </View>
 
-                  {/* 選択中のアクション */}
                   {isSelected && (
                     <View style={styles.actionArea}>
                       <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate('GameEntry')}>
@@ -214,7 +201,7 @@ export default function CoExperienceMenuScreen({ navigation }) {
                       <TouchableOpacity
                         style={styles.createRoomButton}
                         onPress={() => navigation.navigate('GameCreate')}
-                        activityOpacity={0.7}
+                        activeOpacity={0.7}
                       >
                         <View style={styles.createRoomIconBox}>
                           <Plus size={20} color="#4A90E2" />
@@ -236,7 +223,6 @@ export default function CoExperienceMenuScreen({ navigation }) {
         <View style={{ height: 80 }} />
       </ScrollView>
 
-      {/* フッター */}
       <View style={styles.footer}>
         <LinearGradient
           colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.95)', '#FFFFFF']}
@@ -251,10 +237,9 @@ export default function CoExperienceMenuScreen({ navigation }) {
 
       <View style={styles.demo}>
         <TouchableOpacity
-          style={styles.demoButton}
-          onPress={() => {navigation.navigate('karigame')}}
+          onPress={() => { navigation.navigate('karigame') }}
         >
-          <Text style={styles.demoText}>デモゲーム</Text>
+          <Text>デモゲーム</Text>
         </TouchableOpacity>
       </View>
 
@@ -361,7 +346,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   cardBackgroundClipper: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderRadius: 24,
     overflow: 'hidden',
     zIndex: 0,
