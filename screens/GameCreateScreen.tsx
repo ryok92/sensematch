@@ -1,25 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Share,
-  Alert,
-  ActivityIndicator,
-  Animated,
-  TextInput,
-  FlatList,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  Modal
+  View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Animated,
+  TextInput, FlatList, Image, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { LinearGradient } from 'react-native-linear-gradient';
-import * as Clipboard from 'expo-clipboard';
+import Clipboard from '@react-native-clipboard/clipboard';
 
 import auth from '@react-native-firebase/auth';
 import firestore, { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
@@ -170,13 +158,12 @@ export default function GameCreateScreen({ navigation, route }: { navigation: an
         .where('users', 'array-contains', currentUser.uid)
         .get();
 
-      const promises = snapshot.docs.map(async (matchDoc) => {
+      const results = snapshot.docs.map((matchDoc) => {
         const data = matchDoc.data();
         const otherUserId = data.users.find((uid: string) => uid !== currentUser.uid);
         if (!otherUserId) return null;
 
-        const userDoc = await firestore().collection('users').doc(otherUserId).get();
-        const userData = userDoc.exists() ? userDoc.data() : null;
+        const userData = data.userSnapshots?.[otherUserId];
 
         let userImage = DEFAULT_MALE_IMAGE;
         if (userData) {
@@ -196,7 +183,6 @@ export default function GameCreateScreen({ navigation, route }: { navigation: an
         } as FriendData;
       });
 
-      const results = await Promise.all(promises);
       const validResults = results.filter((item): item is FriendData => item !== null);
 
       validResults.sort((a, b) => {
@@ -312,7 +298,7 @@ export default function GameCreateScreen({ navigation, route }: { navigation: an
   //コードコピー処理
   const handleCopyCode = async () => {
     if (!roomData) return;
-    await Clipboard.setStringAsync(roomData.code);
+    Clipboard.setString(roomData.code);
     Alert.alert('コードをコピーしました');
   };
 
@@ -565,7 +551,6 @@ const styles = StyleSheet.create({
   backButton: { padding: 4 },
   headerTitle: { fontSize: 17, fontWeight: '700', marginLeft: 12, color: '#333' },
   content: { flex: 1, paddingHorizontal: 24, paddingTop: 16 },
-
   gameCard: {
     width: '100%', backgroundColor: '#FFF', borderRadius: 24, padding: 4,
     borderWidth: 1, borderColor: '#F5F7FA', marginBottom: 24,
@@ -575,13 +560,11 @@ const styles = StyleSheet.create({
   iconBox: { width: 56, height: 56, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
   selectedLabel: { fontSize: 10, fontWeight: '700', color: '#AAA', marginBottom: 2 },
   gameTitle: { fontSize: 16, fontWeight: '700', color: '#333' },
-
   centerContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 80 },
   illustrationContainer: { marginBottom: 24 },
   illustrationCircle: { width: 88, height: 88, borderRadius: 44, backgroundColor: '#F0F9FF', alignItems: 'center', justifyContent: 'center' },
   mainTitle: { fontSize: 24, fontWeight: '800', color: '#333', marginBottom: 12 },
   subText: { fontSize: 14, color: '#888', textAlign: 'center', lineHeight: 22, marginBottom: 32 },
-
   inputContainer: { alignItems: 'center', width: '100%', marginBottom: 32 },
   codeTextInput: {
     width: '100%', height: 64, borderRadius: 16, backgroundColor: '#F5F7FA',
@@ -589,14 +572,12 @@ const styles = StyleSheet.create({
     borderWidth: 2, borderColor: '#E0E7FF'
   },
   inputHelper: { fontSize: 12, color: '#AAA', marginTop: 8 },
-
   createButton: {
     width: '100%', backgroundColor: '#4A90E2', paddingVertical: 18, borderRadius: 30, alignItems: 'center',
     shadowColor: "#4A90E2", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8,
   },
   createButtonDisabled: { backgroundColor: '#A0C4E8', shadowOpacity: 0, elevation: 0 },
   createButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
-
   resultContainer: { flex: 1, alignItems: 'center', paddingTop: 10 },
   statusBadge: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0FDF4', paddingHorizontal: 12, paddingVertical: 6,
@@ -604,25 +585,21 @@ const styles = StyleSheet.create({
   },
   statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#22C55E', marginRight: 6 },
   statusText: { fontSize: 12, color: '#15803D', fontWeight: '700' },
-
   codeLabel: { fontSize: 11, fontWeight: '700', color: '#AAA', letterSpacing: 1.5, marginBottom: 12 },
   codeDisplayContainer: {
     width: '100%', height: 80, alignItems: 'center', justifyContent: 'center', marginBottom: 24,
     borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: '#E0E7FF',
   },
   codeText: { fontSize: 40, fontWeight: '800', color: '#333', fontVariant: ['tabular-nums'], letterSpacing: 8 },
-
   actionButtonsRow: { flexDirection: 'row', width: '100%', gap: 12, marginBottom: 32 },
   actionButton: { flex: 1, paddingVertical: 12, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   actionButtonOutline: { backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0' },
   actionButtonTextSecondary: { fontSize: 12, fontWeight: '700', color: '#64748B' },
-
   friendShareSection: { width: '100%', flex: 1 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingHorizontal: 4 },
   sectionTitle: { fontSize: 14, fontWeight: '700', color: '#333' },
   friendList: { paddingBottom: 16 },
   noFriendsText: { fontSize: 12, color: '#999', textAlign: 'center', marginTop: 20 },
-
   friendItem: { alignItems: 'center', marginRight: 16, width: 64 },
   friendItemSelected: { opacity: 1 },
   avatarContainer: { position: 'relative', marginBottom: 6 },
@@ -634,10 +611,8 @@ const styles = StyleSheet.create({
   },
   friendName: { fontSize: 11, color: '#666', textAlign: 'center' },
   friendNameSelected: { color: '#4A90E2', fontWeight: '700' },
-
   noteContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 'auto', marginBottom: 16, alignSelf: 'center', opacity: 0.7 },
   noteText: { fontSize: 11, color: '#C2410C', marginLeft: 4 },
-
   messageInputContainer: {
     backgroundColor: '#FFF',
     borderTopWidth: 1, borderColor: '#F0F0F0',
@@ -648,7 +623,6 @@ const styles = StyleSheet.create({
   targetAvatar: { width: 24, height: 24, borderRadius: 12, marginRight: 8 },
   targetName: { fontSize: 12, color: '#333', flex: 1, fontWeight: '600' },
   closeMessageButton: { padding: 4 },
-
   messageInputRow: { flexDirection: 'row', alignItems: 'center' },
   messageInput: {
     flex: 1, backgroundColor: '#F5F7FA', borderRadius: 20,

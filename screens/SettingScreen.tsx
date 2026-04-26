@@ -1,28 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Switch,
-  Alert,
-  Dimensions,
-  ActivityIndicator,
-  Animated
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Alert, Dimensions, ActivityIndicator, Animated,
+  NativeSyntheticEvent, NativeScrollEvent
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-
-// ★ EDIT: Firebase関連モジュールをインポート
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
+import firestore, { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
 
 const { width } = Dimensions.get('window');
 
-// トグル行コンポーネント
-const ToggleRow = ({ title, description, iconName, iconColor, value, onValueChange, isPremium, disabled }) => (
-  // ★ EDIT: disabled プロパティを追加して送信中の連打を防止
+interface ToggleRowProps {
+  title: string;
+  description: string;
+  iconName: string;
+  iconColor: string;
+  value: boolean;
+  onValueChange: (value: boolean) => void;
+  isPremium?: boolean;
+  disabled?: boolean;
+}
+
+const ToggleRow: React.FC<ToggleRowProps> = ({ title, description, iconName, iconColor, value, onValueChange, isPremium, disabled }) => (
   <View style={[styles.row, disabled && { opacity: 0.5 }]}>
     <View style={styles.rowLeft}>
       <View style={[styles.iconContainer, { backgroundColor: `${iconColor}15` }]}>
@@ -51,34 +51,43 @@ const ToggleRow = ({ title, description, iconName, iconColor, value, onValueChan
   </View>
 );
 
-export default function SettingsScreen({ navigation }) {
-  const [activeTab, setActiveTab] = useState('privacy'); // 'privacy' | 'notifications'
+interface PrivacySettings {
+  ghostMode: boolean;
+  showLoginStatus: boolean;
+  twoFactorAuth: boolean;
+  footprints: boolean;
+}
 
-  // ★ EDIT: スワイプ制御用のRefを追加
-  const scrollViewRef = useRef(null);
+interface NotificationSettings {
+  likesNotif: boolean;
+  matchNotif: boolean;
+  msgNotif: boolean;
+  emailNotif: boolean;
+}
 
+interface SettingsScreenProps {
+  navigation: any;
+}
+
+export default function SettingsScreen({ navigation }: SettingsScreenProps) {
+  const [activeTab, setActiveTab] = useState('privacy');
+  const scrollViewRef = useRef<ScrollView>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
-
-  // ★ EDIT: Firestoreからのデータ読み込み状態管理
-  const [loading, setLoading] = useState(true);
-  const [blockedCount, setBlockedCount] = useState(0);
-
-  // ★ EDIT: 設定項目をオブジェクトで管理
-  const [privacySettings, setPrivacySettings] = useState({
+  const [loading, setLoading] = useState<boolean>(true);
+  const [blockedCount, setBlockedCount] = useState<number>(0);
+  const [privacySettings, setPrivacySettings] = useState<PrivacySettings>({
     ghostMode: false,
     showLoginStatus: true,
     twoFactorAuth: false,
     footprints: true
   });
-
-  const [notificationSettings, setNotificationSettings] = useState({
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
     likesNotif: true,
     matchNotif: true,
     msgNotif: true,
     emailNotif: false
   });
 
-  // ★ EDIT: Firestoreから初期設定とブロック人数を読み込む
   useEffect(() => {
     const user = auth().currentUser;
     if (!user) {
@@ -86,16 +95,14 @@ export default function SettingsScreen({ navigation }) {
       return;
     }
 
-    // 設定データの取得
     const fetchSettings = async () => {
       try {
-        const docRef = firestore().collection('users').doc(user.uid);
-        const doc = await docRef.get();
+        const doc = await firestore().collection('users').doc(user.uid).get();
 
-        if (doc.exists) {
+        if (doc.exists()) {
           const data = doc.data();
-          if (data.privacySettings) setPrivacySettings(prev => ({ ...prev, ...data.privacySettings }));
-          if (data.notificationSettings) setNotificationSettings(prev => ({ ...prev, ...data.notificationSettings }));
+          if (data?.privacySettings) setPrivacySettings(prev => ({ ...prev, ...data.privacySettings }));
+          if (data?.notificationSettings) setNotificationSettings(prev => ({ ...prev, ...data.notificationSettings }));
         }
       } catch (error) {
         console.error("Error fetching settings: ", error);
@@ -103,7 +110,6 @@ export default function SettingsScreen({ navigation }) {
       }
     };
 
-    // ブロック人数のリアルタイム取得
     const unsubscribeBlocked = firestore()
       .collection('users')
       .doc(user.uid)
@@ -117,20 +123,21 @@ export default function SettingsScreen({ navigation }) {
     return () => unsubscribeBlocked();
   }, []);
 
-  // ★ EDIT: Firestoreに設定を保存する共通関数
-  const updateSetting = async (category, key, value) => {
+  const updateSetting = async (
+    category: 'privacySettings' | 'notificationSettings',
+    key: string,
+    value: boolean
+  ) => {
     const user = auth().currentUser;
     if (!user) return;
 
     try {
-      // ローカルステートを即時更新
       if (category === 'privacySettings') {
         setPrivacySettings(prev => ({ ...prev, [key]: value }));
       } else {
         setNotificationSettings(prev => ({ ...prev, [key]: value }));
       }
 
-      // Firestoreを更新
       await firestore().collection('users').doc(user.uid).set({
         [category]: {
           [key]: value
@@ -140,11 +147,10 @@ export default function SettingsScreen({ navigation }) {
     } catch (error) {
       console.error("Error updating setting: ", error);
       Alert.alert("エラー", "設定の保存に失敗しました。通信環境をご確認ください。");
-      // エラー時はロールバック処理を追加するとより親切です
     }
   };
 
-  const handleTwoFactorToggle = (value) => {
+  const handleTwoFactorToggle = (value: boolean) => {
     if (value) {
       Alert.alert(
         "二段階認証を有効にしますか？",
@@ -159,14 +165,12 @@ export default function SettingsScreen({ navigation }) {
     }
   };
 
-  // ★ EDIT: タブのタップ時のスクロール処理
-  const handleTabPress = (tabName, index) => {
+  const handleTabPress = (tabName: 'privacy' | 'notifications', index: number) => {
     setActiveTab(tabName);
     scrollViewRef.current?.scrollTo({ x: index * width, animated: true });
   };
 
-  // ★ EDIT: スワイプ時のタブ状態更新
-  const handleScrollEnd = (event) => {
+  const handleScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const offsetX = event.nativeEvent.contentOffset.x;
     const pageIndex = Math.round(offsetX / width);
     if (pageIndex === 0 && activeTab !== 'privacy') setActiveTab('privacy');
@@ -190,7 +194,6 @@ export default function SettingsScreen({ navigation }) {
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
 
-        {/* ヘッダー */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="chevron-back" size={28} color="#333" />
@@ -199,11 +202,9 @@ export default function SettingsScreen({ navigation }) {
           <View style={{ width: 40 }} />
         </View>
 
-        {/* タブコントロール */}
         <View style={styles.tabContainer}>
           <TouchableOpacity
             style={styles.tab}
-            // ★ EDIT: タップ処理を handleTabPress に変更
             onPress={() => handleTabPress('privacy', 0)}
           >
             <Ionicons
@@ -219,7 +220,6 @@ export default function SettingsScreen({ navigation }) {
 
           <TouchableOpacity
             style={styles.tab}
-            // ★ EDIT: タップ処理を handleTabPress に変更
             onPress={() => handleTabPress('notifications', 1)}
           >
             <Ionicons
@@ -243,7 +243,6 @@ export default function SettingsScreen({ navigation }) {
           />
         </View>
 
-        {/* ★ EDIT: ScrollViewを追加し、横スクロール(スワイプ)を可能にする */}
         <ScrollView
           ref={scrollViewRef}
           horizontal
@@ -257,9 +256,7 @@ export default function SettingsScreen({ navigation }) {
           scrollEventThrottle={16}
           style={{ flex: 1 }}
         >
-          {/* 1ページ目: プライバシー設定コンテンツ */}
           <ScrollView contentContainerStyle={[styles.content, { width }]} showsVerticalScrollIndicator={false}>
-            {/* 身バレ防止バナー */}
             <View style={[styles.ghostCard, privacySettings.ghostMode && styles.ghostCardActive]}>
               <View style={styles.ghostHeader}>
                 <View style={styles.rowLeft}>
@@ -319,7 +316,6 @@ export default function SettingsScreen({ navigation }) {
             </View>
 
             <View style={styles.section}>
-              {/* ★ EDIT: BlockList画面へのナビゲーションを追加 */}
               <TouchableOpacity
                 style={styles.linkRow}
                 onPress={() => navigation.navigate('BlockList')}
@@ -341,7 +337,6 @@ export default function SettingsScreen({ navigation }) {
             </View>
           </ScrollView>
 
-          {/* 2ページ目: 通知設定コンテンツ */}
           <ScrollView contentContainerStyle={[styles.content, { width }]} showsVerticalScrollIndicator={false}>
             <View style={styles.infoBox}>
               <Ionicons name="phone-portrait-outline" size={20} color="#4A90E2" style={{ marginRight: 12 }} />
@@ -398,213 +393,64 @@ export default function SettingsScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F7FA',
-  },
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#FFF',
-  },
+  container: { flex: 1, backgroundColor: '#F5F7FA', },
+  safeArea: { flex: 1, backgroundColor: '#FFF', },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFF',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16,
+    paddingVertical: 12, backgroundColor: '#FFF',
   },
-  backButton: {
-    padding: 4,
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#333',
-  },
-  
-  // Tabs
+  backButton: { padding: 4, },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: '#333', },
   tabContainer: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEE',
-    backgroundColor: '#FFF',
-    position: 'relative', // ★ EDIT: インジケーター配置用
+    flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#EEE', backgroundColor: '#FFF', position: 'relative',
   },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    // ★ EDIT: borderBottomWidth等の固定スタイルを削除
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#999',
-  },
-  activeTabText: {
-    color: '#4A90E2',
-  },
-  // ★ EDIT: インジケーターのスタイルを追加
+  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, },
+  tabText: { fontSize: 14, fontWeight: '600', color: '#999', },
+  activeTabText: { color: '#4A90E2', },
   indicator: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    height: 3,
-    width: '50%', // 2タブなので50%
-    backgroundColor: '#4A90E2',
-    borderTopLeftRadius: 3,
-    borderTopRightRadius: 3,
+    position: 'absolute', bottom: 0, left: 0, height: 3, width: '50%', backgroundColor: '#4A90E2',
+    borderTopLeftRadius: 3, borderTopRightRadius: 3,
   },
-
-  content: {
-    padding: 24,
-    paddingBottom: 40,
-    backgroundColor: '#F5F7FA',
-  },
-
-  // Cards & Sections
+  content: { padding: 24, paddingBottom: 40, backgroundColor: '#F5F7FA', },
   section: {
-    backgroundColor: '#FFF',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#EFEFEF',
+    backgroundColor: '#FFF', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 8, marginBottom: 20,
+    borderWidth: 1, borderColor: '#EFEFEF',
   },
   sectionHeader: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#999',
-    marginTop: 12,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontSize: 11, fontWeight: '700', color: '#999', marginTop: 12, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5,
   },
-  
-  // Rows
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F5F7FA',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16,
+    borderBottomWidth: 1, borderBottomColor: '#F5F7FA',
   },
-  linkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-  },
-  rowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    paddingRight: 16,
-  },
+  linkRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, },
+  rowLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, paddingRight: 16, },
   iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
+    width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 12,
   },
-  textContainer: {
-    flex: 1,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  rowTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 2,
-  },
-  rowDesc: {
-    fontSize: 11,
-    color: '#999',
-    lineHeight: 16,
-  },
+  textContainer: { flex: 1, },
+  titleRow: { flexDirection: 'row', alignItems: 'center', },
+  rowTitle: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 2, },
+  rowDesc: { fontSize: 11, color: '#999', lineHeight: 16, },
   premiumBadge: {
-    backgroundColor: '#FBBF24',
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 4,
-    marginLeft: 6,
+    backgroundColor: '#FBBF24', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, marginLeft: 6,
   },
-  premiumText: {
-    color: '#FFF',
-    fontSize: 8,
-    fontWeight: '700',
-  },
-  
-  // Ghost Mode Banner
+  premiumText: { color: '#FFF', fontSize: 8, fontWeight: '700', },
   ghostCard: {
-    backgroundColor: '#FFF',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#EFEFEF',
+    backgroundColor: '#FFF', borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: '#EFEFEF',
   },
-  ghostCardActive: {
-    backgroundColor: '#4338CA', // Indigo
-    borderWidth: 0,
-  },
-  ghostHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  ghostTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#333',
-  },
-  ghostDesc: {
-    fontSize: 11,
-    color: '#666',
-    marginTop: 2,
-  },
-
-  // Info Box
+  ghostCardActive: { backgroundColor: '#4338CA', borderWidth: 0, },
+  ghostHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', },
+  ghostTitle: { fontSize: 15, fontWeight: '700', color: '#333', },
+  ghostDesc: { fontSize: 11, color: '#666', marginTop: 2, },
   infoBox: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(74, 144, 226, 0.1)',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
-    alignItems: 'flex-start',
+    flexDirection: 'row', backgroundColor: 'rgba(74, 144, 226, 0.1)', borderRadius: 16, padding: 16,
+    marginBottom: 20, alignItems: 'flex-start',
   },
-  infoTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#4A90E2',
-    marginBottom: 2,
-  },
-  infoDesc: {
-    fontSize: 11,
-    color: '#555',
-    lineHeight: 16,
-  },
-
+  infoTitle: { fontSize: 13, fontWeight: '700', color: '#4A90E2', marginBottom: 2, },
+  infoDesc: { fontSize: 11, color: '#555', lineHeight: 16, },
   badgeCount: {
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-    marginRight: 8,
+    backgroundColor: '#F3F4F6', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, marginRight: 8,
   },
-  badgeCountText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#666',
-  }
+  badgeCountText: { fontSize: 12, fontWeight: '600', color: '#666', }
 });
