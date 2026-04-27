@@ -1,19 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  StatusBar,
-  TextInput,
-  KeyboardAvoidingBView,
-  Platform,
-  KeyboardAvoidingView
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StatusBar, TextInput,
+  Platform, KeyboardAvoidingView
 } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -73,11 +64,11 @@ const TAG_CATEGORIES = [
 
 const MAX_TAGS = 10;
 
-export default function TagSettingScrren({ navigation }) {
-  const [selectedTags, setSelectedTags] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [inputText, setInputText] = useState('');
+export default function TagSettingScrren({ navigation }: any) {
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [saving, setSaving] = useState<boolean>(false);
+  const [inputText, setInputText] = useState<string>('');
 
   useEffect(() => {
     const fetchUserTags = async () => {
@@ -86,9 +77,9 @@ export default function TagSettingScrren({ navigation }) {
 
       try {
         const doc = await firestore().collection('users').doc(user.uid).get();
-        if (doc.exists) {
+        if (doc.exists()) {
           const data = doc.data();
-          if (data.interests && Array.isArray(data.interests)) {
+          if (data?.interests && Array.isArray(data.interests)) {
             setSelectedTags(data.interests);
           }
         }
@@ -101,7 +92,7 @@ export default function TagSettingScrren({ navigation }) {
     fetchUserTags();
   }, []);
 
-  const toggleTag = (tag) => {
+  const toggleTag = (tag: string) => {
     if (selectedTags.includes(tag)) {
       setSelectedTags(prev => prev.filter(t => t !== tag));
     } else {
@@ -153,7 +144,7 @@ export default function TagSettingScrren({ navigation }) {
 
   if (loading) {
     return (
-      <View style={StyleSheet.loadingContainer}>
+      <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={THEME.primary} />
       </View>
     );
@@ -161,7 +152,7 @@ export default function TagSettingScrren({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barstyle="dark-content" backgroundColor="#FFF" />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
@@ -184,7 +175,7 @@ export default function TagSettingScrren({ navigation }) {
       </View>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "undefind"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.content}
       >
         <View style={styles.selectedArea}>
@@ -198,7 +189,7 @@ export default function TagSettingScrren({ navigation }) {
 
           <ScrollView
             horizontal
-            showHorizontalScrollIndicator={false}
+            showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.selectedScroll}
           >
             {selectedTags.length === 0 ? (
@@ -207,7 +198,7 @@ export default function TagSettingScrren({ navigation }) {
               selectedTags.map((tag) => (
                 <TouchableOpacity
                   key={tag}
-                  acitivityOpacity={0.8}
+                  activeOpacity={0.8}
                   onPress={() => toggleTag(tag)}
                   style={styles.selectedChip}
                 >
@@ -280,7 +271,7 @@ export default function TagSettingScrren({ navigation }) {
                   return (
                     <TouchableOpacity
                       key={tag}
-                      acitiveOpacity={0.7}
+                      activeOpacity={0.7}
                       onPress={() => toggleTag(tag)}
                       style={[
                         styles.tagChip,
@@ -308,249 +299,70 @@ export default function TagSettingScrren({ navigation }) {
 
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFF',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  // ヘッダー
+  container: { flex: 1, backgroundColor: '#FFF', },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: THEME.border,
-    backgroundColor: '#FFF',
-    zIndex: 10,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: THEME.border, backgroundColor: '#FFF', zIndex: 10,
   },
-  headerBtn: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: THEME.textMain,
-  },
+  headerBtn: { padding: 8, },
+  headerTitle: { fontSize: 16, fontWeight: 'bold', color: THEME.textMain, },
   saveBtn: {
-    backgroundColor: THEME.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    minWidth: 64,
-    alignItems: 'center',
+    backgroundColor: THEME.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, minWidth: 64, alignItems: 'center',
   },
-  saveBtnDisabled: {
-    backgroundColor: '#94A3B8',
-  },
-  saveBtnText: {
-    color: '#FFF',
-    fontWeight: 'bold',
-    fontSize: 12,
-  },
-
-  content: {
-    flex: 1,
-  },
-
-  // 選択済みエリア
-  selectedArea: {
-    paddingVertical: 16,
-    backgroundColor: THEME.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: THEME.border,
-  },
-  selectedHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    marginBottom: 12,
-  },
-  selectedLabel: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: THEME.textSub,
-  },
-  counterText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: THEME.primary,
-  },
-  counterLimit: {
-    color: '#EF4444',
-  },
-  selectedScroll: {
-    paddingHorizontal: 16,
-    minHeight: 36,
-    alignItems: 'center',
-  },
-  placeholderText: {
-    fontSize: 12,
-    color: '#94A3B8',
-  },
+  saveBtnDisabled: { backgroundColor: '#94A3B8', },
+  saveBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 12, },
+  content: { flex: 1, },
+  selectedArea: { paddingVertical: 16, backgroundColor: THEME.surface, borderBottomWidth: 1, borderBottomColor: THEME.border, },
+  selectedHeader: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 12, },
+  selectedLabel: { fontSize: 12, fontWeight: 'bold', color: THEME.textSub, },
+  counterText: { fontSize: 12, fontWeight: 'bold', color: THEME.primary, },
+  counterLimit: { color: '#EF4444', },
+  selectedScroll: { paddingHorizontal: 16, minHeight: 36, alignItems: 'center', },
+  placeholderText: { fontSize: 12, color: '#94A3B8', },
   selectedChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: THEME.primary,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    marginRight: 8,
-    shadowColor: THEME.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: THEME.primary, paddingVertical: 8, paddingHorizontal: 12,
+    borderRadius: 20, marginRight: 8, shadowColor: THEME.primary, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2, shadowRadius: 4, elevation: 3,
   },
-  selectedChipText: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-
-  // リストエリア
-  listContainer: {
-    flex: 1,
-  },
-  listContent: {
-    paddingVertical: 24, // 上下のパディング
-  },
-
-  // ★ NEW STYLES: 自由入力セクション
+  selectedChipText: { color: '#FFF', fontSize: 12, fontWeight: 'bold', },
+  listContainer: { flex: 1, },
+  listContent: { paddingVertical: 24, },
   manualInputSection: {
-    marginHorizontal: 24,
-    marginBottom: 24,
-    padding: 16,
-    backgroundColor: '#FFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
+    marginHorizontal: 24, marginBottom: 24, padding: 16, backgroundColor: '#FFF', borderRadius: 16,
+    borderWidth: 1, borderColor: '#E2E8F0', shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03, shadowRadius: 4, elevation: 1,
   },
-  manualInputHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
+  manualInputHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, },
   manualIconBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: '#FEF3C7', // Amber-100
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
+    width: 28, height: 28, borderRadius: 8, backgroundColor: '#FEF3C7', justifyContent: 'center',
+    alignItems: 'center', marginRight: 8,
   },
-  manualInputTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: THEME.textMain,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+  manualInputTitle: { fontSize: 14, fontWeight: 'bold', color: THEME.textMain, },
+  inputRow: { flexDirection: 'row', alignItems: 'center', },
   inputField: {
-    flex: 1,
-    backgroundColor: THEME.surface,
-    borderWidth: 1,
-    borderColor: THEME.border,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: THEME.textMain,
-    marginRight: 8,
+    flex: 1, backgroundColor: THEME.surface, borderWidth: 1, borderColor: THEME.border, borderRadius: 12,
+    paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, color: THEME.textMain, marginRight: 8,
   },
   addButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: THEME.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: THEME.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    width: 44, height: 44, borderRadius: 12, backgroundColor: THEME.primary, justifyContent: 'center',
+    alignItems: 'center', shadowColor: THEME.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3,
+    shadowRadius: 4, elevation: 3,
   },
-  addButtonDisabled: {
-    backgroundColor: '#E2E8F0',
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-
-  // おすすめヘッダー
-  recommendedHeader: {
-    paddingHorizontal: 24,
-    marginBottom: 16,
-    paddingTop: 8,
-  },
-  recommendedTitle: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#94A3B8',
-    letterSpacing: 1,
-  },
-
-  // カテゴリセクション
-  categorySection: {
-    marginBottom: 32,
-    paddingHorizontal: 24,
-  },
-  categoryHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
+  addButtonDisabled: { backgroundColor: '#E2E8F0', shadowOpacity: 0, elevation: 0, },
+  recommendedHeader: { paddingHorizontal: 24, marginBottom: 16, paddingTop: 8, },
+  recommendedTitle: { fontSize: 12, fontWeight: 'bold', color: '#94A3B8', letterSpacing: 1, },
+  categorySection: { marginBottom: 32, paddingHorizontal: 24, },
+  categoryHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, },
   categoryIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: '#EFF6FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
+    width: 32, height: 32, borderRadius: 8, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', marginRight: 10,
   },
-  categoryTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: THEME.textMain,
-  },
-  tagsFlex: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
+  categoryTitle: { fontSize: 14, fontWeight: 'bold', color: THEME.textMain, },
+  tagsFlex: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, },
   tagChip: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    backgroundColor: '#FFF',
+    paddingVertical: 8, paddingHorizontal: 14, borderRadius: 24, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFF',
   },
-  tagChipActive: {
-    borderColor: THEME.primary,
-    backgroundColor: '#EFF6FF',
-  },
-  tagText: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  tagTextActive: {
-    color: THEME.primary,
-    fontWeight: 'bold',
-  },
+  tagChipActive: { borderColor: THEME.primary, backgroundColor: '#EFF6FF', },
+  tagText: { fontSize: 12, color: '#64748B', fontWeight: '500', },
+  tagTextActive: { color: THEME.primary, fontWeight: 'bold', },
 });

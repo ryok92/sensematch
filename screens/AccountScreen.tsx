@@ -1,20 +1,20 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Alert
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const AccountItem = ({ title, iconName, isDestructive, isLast, onPress }) => (
+interface AccountItemProps {
+  title: string;
+  iconName: string;
+  isDestructive?: boolean;
+  isLast?: boolean;
+  onPress: () => void;
+}
+const AccountItem = ({ title, iconName, isDestructive, isLast, onPress }: AccountItemProps) => (
   <TouchableOpacity
     style={[styles.item, isLast && styles.itemLast]}
     onPress={onPress}
-    activityOpacity={0.7}
+    activeOpacity={0.7}
   >
     <View style={styles.itemLeft}>
       <View style={[styles.iconBox, isDestructive ? styles.iconBoxDestructive : styles.iconBoxNormal]}>
@@ -27,7 +27,7 @@ const AccountItem = ({ title, iconName, isDestructive, isLast, onPress }) => (
   </TouchableOpacity>
 );
 
-export default function AccountScreen({ navigation }) {
+export default function AccountScreen({ navigation }: any) {
   const handleDeleteAccount = () => {
     Alert.alert(
       "退会の確認",
@@ -87,91 +87,32 @@ export default function AccountScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
-  safeArea: {
-    flex: 1,
-  },
+  container: { flex: 1, backgroundColor: '#F8FAFC', },
+  safeArea: { flex: 1, },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16,
+    paddingVertical: 12, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#F1F5F9',
   },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#333',
-  },
-  content: {
-    padding: 24,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    color: '#64748B',
-    marginBottom: 8,
-    marginLeft: 4,
-    fontWeight: '600',
-  },
+  backButton: { padding: 8, },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: '#333', },
+  content: { padding: 24, },
+  sectionTitle: { fontSize: 13, color: '#64748B', marginBottom: 8, marginLeft: 4, fontWeight: '600', },
   menuGroup: {
-    backgroundColor: '#FFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    overflow: 'hidden',
-    marginBottom: 16,
+    backgroundColor: '#FFF', borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0',
+    overflow: 'hidden', marginBottom: 16,
   },
   item: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16,
+    backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#F1F5F9',
   },
-  itemLast: {
-    borderBottomWidth: 0,
-  },
-  itemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+  itemLast: { borderBottomWidth: 0, },
+  itemLeft: { flexDirection: 'row', alignItems: 'center', },
   iconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
+    width: 36, height: 36, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12,
   },
-  iconBoxNormal: {
-    backgroundColor: '#EFF6FF',
-  },
-  iconBoxDestructive: {
-    backgroundColor: '#FEF2F2',
-  },
-  itemTitle: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#333',
-  },
-  destructiveText: {
-    color: '#EF4444',
-  },
-  noteText: {
-    fontSize: 12,
-    color: '#94A3B8',
-    lineHeight: 18,
-    paddingHorizontal: 4,
-  },
+  iconBoxNormal: { backgroundColor: '#EFF6FF', },
+  iconBoxDestructive: { backgroundColor: '#FEF2F2', },
+  itemTitle: { fontSize: 15, fontWeight: '500', color: '#333', },
+  destructiveText: { color: '#EF4444', },
+  noteText: { fontSize: 12, color: '#94A3B8', lineHeight: 18, paddingHorizontal: 4, },
 });

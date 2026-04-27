@@ -1,19 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ImageBackground,
-  Image,
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  PanResponder,
+  View, Text, StyleSheet, TouchableOpacity, ImageBackground, Image,
+  ActivityIndicator, Alert, Dimensions, PanResponder,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { getFirestore, doc, getDoc } from '@react-native-firebase/firestore';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import firestore from '@react-native-firebase/firestore';
 
 const NOTE_BG_IMAGE = require('../assets/open_note.png');
 const DESK_BG_IMAGE = require('../assets/desk.png');
@@ -30,10 +22,9 @@ interface NotePage {
 
 export default function NoteViewScreen({ navigation, route }: { navigation: any, route: any }) {
   const { userId } = route.params;
-
   const [pages, setPages] = useState<NotePage[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [currentIndex, setCurrentIndex] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(true);
 
   const pagesRef = useRef(pages);
   useEffect(() => {
@@ -66,9 +57,7 @@ export default function NoteViewScreen({ navigation, route }: { navigation: any,
   useEffect(() => {
     const fetchNoteData = async () => {
       try {
-        const db = getFirestore();
-        const userDocRef = doc(db, 'users', userId);
-        const userDocSnap = await getDoc(userDocRef);
+        const userDocSnap = await firestore().collection('users').doc(userId).collection('private').doc('settings').get();
 
         if (userDocSnap.exists()) {
           const data = userDocSnap.data();
@@ -191,98 +180,49 @@ export default function NoteViewScreen({ navigation, route }: { navigation: any,
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FAFAFA' },
   centered: { justifyContent: 'center', alignItems: 'center' },
-  
   bgCircle: { position: 'absolute', borderRadius: 999, opacity: 0.4 },
   bgCircleTopRight: { width: 250, height: 250, backgroundColor: '#d4e7fd', top: -50, right: -50 },
   bgCircleBottomLeft: { width: 300, height: 300, backgroundColor: '#FCE7F3', bottom: 50, left: -100 },
   bgCircleMiddleLeft: { width: 150, height: 150, backgroundColor: '#FEE2E2', top: '35%', left: -50 },
-
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, zIndex: 10 },
   headerTitle: { fontSize: 25, fontWeight: 'bold', color: '#333', letterSpacing: 1 },
   closeButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
-
   mainContent: { flex: 1, flexDirection: 'column', paddingHorizontal: 0 },
-
   topPhotoSection: { flex: 1, width: '100%', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 16, justifyContent: 'center', alignItems: 'center' },
-  topPhotoWrapper: { width: '100%', height: '100%', borderRadius: 16, overflow: 'hidden', backgroundColor: '#E2E8F0', shadowColor: "#000", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 8 },
-  topPhotoBackground: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%', opacity: 0.6 },
-  topPhotoOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)' },
+  topPhotoWrapper: {
+    width: '100%', height: '100%', borderRadius: 16, overflow: 'hidden', backgroundColor: '#E2E8F0', shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 8
+  },
+  topPhotoBackground: { ...StyleSheet.absoluteFill, width: '100%', height: '100%', opacity: 0.6 },
+  topPhotoOverlay: { ...StyleSheet.absoluteFill, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)' },
   topPhotoMain: { width: '92%', height: '92%', resizeMode: 'contain', borderRadius: 8 },
   topPhotoPlaceholder: { flex: 1, backgroundColor: '#E2E8F0' },
-  deskBackground: {
-    width: '100%',
-    paddingTop: 40,
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    marginBottom:5,
+  deskBackground: { width: '100%', paddingTop: 40, justifyContent: 'flex-end', alignItems: 'center', marginBottom: 5, },
+  deskBackgroundImage: { resizeMode: 'cover', },
+  noteContainer: {
+    width: '100%', alignItems: 'center', shadowColor: "#000", shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.15,
+    shadowRadius: 15, elevation: 10, transform: [{ translateY: 10 }],
   },
-  deskBackgroundImage: {
-    resizeMode: 'cover',
-  },
-
-  noteContainer: { width: '100%', alignItems: 'center', shadowColor: "#000", shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.15, shadowRadius: 15, elevation: 10, transform: [{ translateY:10 }], },
   noteBackground: { justifyContent: 'center', alignItems: 'center' },
   noteImageStyle: { borderRadius: 12, resizeMode: 'contain' },
-
-  notePagesWrapper: { 
-    flex: 1, 
-    flexDirection: 'row', 
-    width: '100%', 
-    paddingVertical: '6%', 
-    paddingHorizontal: '4%' 
-  },
-
-  leftPage: { 
-    flex: 1, 
-    paddingTop: 11, 
-    paddingLeft: 11, 
-    paddingBottom: 11, 
-    paddingRight: 15, 
-    justifyContent: 'center', 
-    marginLeft: 15, 
-    marginBottom: 5 
+  notePagesWrapper: { flex: 1, flexDirection: 'row', width: '100%', paddingVertical: '6%', paddingHorizontal: '4%' },
+  leftPage: {
+    flex: 1, paddingTop: 11, paddingLeft: 11, paddingBottom: 11, paddingRight: 15, justifyContent: 'center',
+    marginLeft: 15, marginBottom: 5
   },
   photoContainer: { flex: 1, borderRadius: 8, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
   photo: { width: '100%', height: '100%', resizeMode: 'cover' },
   photoPlaceholder: { flex: 1, width: '100%', height: '100%', backgroundColor: '#E2E8F0' },
-
   centerBinding: { width: 15 },
-
-  rightPage: { 
-    flex: 1, 
-    paddingTop: 20, 
-    paddingBottom: 10, 
-    paddingLeft: 2,
-    paddingRight: 27, 
-    justifyContent: 'flex-start' 
-  },
+  rightPage: { flex: 1, paddingTop: 20, paddingBottom: 10, paddingLeft: 2, paddingRight: 27, justifyContent: 'flex-start' },
   commentText: { fontSize: 13, color: '#333', lineHeight: 22 },
-  
   paginationContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingBottom: 30, gap: 8 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#CBD5E1' },
   activeDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#E83E8C' },
-
   nextButtonOverlay: {
-    position: 'absolute',
-    bottom: 30,
-    left: 20,
-    backgroundColor: 'rgba(232, 62, 140, 0.85)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    zIndex: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
+    position: 'absolute', bottom: 30, left: 20, backgroundColor: 'rgba(232, 62, 140, 0.85)', paddingHorizontal: 12,
+    paddingVertical: 8, borderRadius: 20, flexDirection: 'row', alignItems: 'center', zIndex: 20, shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 4,
   },
-  nextButtonText: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginRight: 2,
-  },
+  nextButtonText: { color: '#FFF', fontSize: 12, fontWeight: 'bold', marginRight: 2, },
 });
